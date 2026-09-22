@@ -15,9 +15,14 @@ def build_time_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_recent_counts(df: pd.DataFrame, windows=(6, 24, 168)) -> pd.DataFrame:
-    """Add historical event counts by oblast and time window."""
-    result = df.sort_values(["oblast", "started_at"]).copy()
+    """Add historical event counts by oblast and time window.
+
+    Only events strictly earlier than the current event are counted.
+    This prevents future leakage (підглядання в майбутні дані).
+    """
+    result = df.copy()
     result["started_at"] = pd.to_datetime(result["started_at"], utc=True)
+    result = result.sort_values(["oblast", "started_at"])
     result = result.set_index("started_at")
 
     for hours in windows:
