@@ -1,60 +1,50 @@
 # Data model
 
-The project uses a normalized historical event model. The data is intended for retrospective analysis and aggregated civilian-safety forecasting, not operational targeting.
+The project uses a normalized historical event model (нормалізована структура: одна подія зберігається окремо від джерел, зброї, втрат і повітряних тривог).
 
-## Core entities
-
-### attacks
-- attack_id — unique event identifier
-- started_at — event start datetime (UTC)
-- ended_at — event end datetime (UTC), nullable
-- oblast — oblast name
-- raion — district, nullable
-- settlement — city/town/community, nullable
-- latitude / longitude — approximate location, nullable
-- attack_type — missile, UAV, KAB, artillery, other
-- confidence — confirmed, probable, reported, unverified
-- source_id — primary source reference
-- description — short factual note
-
-### weapons
-- weapon_id — unique identifier
-- attack_id — related attack
-- category — missile, UAV, KAB, other
-- type — specific type when documented
-- quantity — nullable
-- intercepted_quantity — nullable
-- source_id — source reference
-
-### casualties
-- casualty_id — unique identifier
-- attack_id — related attack
-- killed — civilians killed
-- injured — civilians injured
-- children_killed — nullable
-- children_injured — nullable
-- source_id — source reference
-
-### alerts
-- alert_id — unique identifier
-- started_at / ended_at — alert interval
-- oblast / raion / settlement — affected area
-- threat_type — documented alert type
-- source_id — source reference
+## Main tables
 
 ### sources
-- source_id — unique identifier
-- source_name
-- source_url
-- source_type
-- publication_date
-- reliability_level
+Stores provenance (походження даних):
+- source name and URL
+- source type
+- publication date
+- reliability level
+
+### geography
+Canonical geographic entities (єдині назви областей/районів/населених пунктів) and optional map coordinates.
+
+### attacks
+One normalized historical event:
+- start/end time
+- oblast, raion, settlement
+- optional generalized geographic coordinates
+- attack type
+- evidence confidence
+- description
+
+### attack_sources
+Many-to-many provenance link (зв'язок багато-до-багатьох):
+- one event can be supported by several sources
+- preserves source event ID when available
+- optional source URL/hash for audit and deduplication
+
+### weapons
+Weapon category/type and reported quantities linked to an attack.
+
+### casualties
+Reported killed/injured counts and child casualty fields where available.
+
+### alerts
+Historical air-alert intervals. An alert is not treated as proof that an attack occurred.
 
 ## Data principles
 
-1. Preserve the original source and publication date.
+1. Preserve original source and publication date.
 2. Never silently convert uncertain reports into confirmed events.
-3. Deduplicate events using time, geography, description and source overlap.
-4. Keep raw data immutable; transformations go into processed tables.
-5. Store UTC internally and convert to local time only for presentation.
-6. Forecasting uses aggregated historical risk windows rather than exact future targets, routes or coordinates.
+3. Possible duplicates are flagged first; automatic deletion is avoided.
+4. Raw data is immutable; transformations go into processed data.
+5. Store timestamps in UTC internally.
+6. Prefer stable geographic IDs over free-text matching when a geographic source provides them.
+7. Keep multiple supporting sources instead of overwriting provenance.
+8. Forecasting uses aggregated historical risk by broad geography/time windows, not exact targets, routes, launch points, or live coordinates.
