@@ -6,6 +6,8 @@ from src.data.cleaning import find_possible_duplicates, normalize_oblast
 def test_normalize_oblast_aliases():
     assert normalize_oblast("Одеська") == "Одеська область"
     assert normalize_oblast("м. Київ") == "Київ"
+    assert normalize_oblast("Харківська") == "Харківська область"
+    assert normalize_oblast("Чернівецька область") == "Чернівецька область"
 
 
 def test_find_possible_duplicates_does_not_delete_rows():
