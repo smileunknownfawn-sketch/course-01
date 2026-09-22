@@ -1,0 +1,28 @@
+sources:
+  - id: acled
+    name: ACLED Ukraine Conflict Monitor
+    url: https://acleddata.com/monitor/ukraine-conflict-monitor
+    type: conflict_events
+    access: api_or_download
+    notes: Historical conflict events; requires appropriate ACLED access.
+
+  - id: alerts_in_ua
+    name: Alerts.in.ua API
+    url: https://devs.alerts.in.ua/
+    type: air_alerts
+    access: api_key
+    notes: Historical air-alert intervals by region/district/community.
+
+  - id: ohchr
+    name: UN Human Rights Monitoring Mission in Ukraine
+    url: https://ukraine.ohchr.org/en/reports/protection-of-civilians
+    type: civilian_casualties
+    access: public_reports
+    notes: Use for casualty verification and monthly aggregates.
+
+  - id: kaggle_missile_attacks
+    name: Massive Missile Attacks on Ukraine
+    url: https://www.kaggle.com/datasets/piterfm/massive-missile-attacks-on-ukraine
+    type: missile_uav_history
+    access: public_dataset
+    notes: Secondary dataset; retain original source fields and provenance.
