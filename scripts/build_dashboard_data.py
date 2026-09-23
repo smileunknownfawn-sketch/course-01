@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -55,6 +56,23 @@ def main() -> None:
         learning_report=learning,
         output_dir=DASHBOARD_DIR,
     )
+
+    optional_tables = [
+        "viina_oblast_daily.csv",
+        "siren_oblast_daily.csv",
+    ]
+    for filename in optional_tables:
+        source = PROCESSED_DIR / filename
+        if source.exists():
+            shutil.copyfile(source, DASHBOARD_DIR / filename)
+
+    multisource = _read_json(PROCESSED_DIR / "multisource_status.json")
+    if multisource:
+        metadata["multisource"] = multisource
+        (DASHBOARD_DIR / "metadata.json").write_text(
+            json.dumps(metadata, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     print(
         json.dumps(
