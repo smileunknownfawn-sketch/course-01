@@ -190,4 +190,43 @@ def write_dashboard_snapshot(
         json.dumps(metadata, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+    history_path = output_dir / "health_history.csv"
+    candidate_metrics = learning_report.get("candidate_metrics") or {}
+    history_row = pd.DataFrame(
+        [
+            {
+                "generated_at": metadata["generated_at"],
+                "latest_source_event_at": metadata["latest_source_event_at"],
+                "technical_readiness_score": readiness_score,
+                "region_coverage_rate": quality_report.get("region_coverage_rate"),
+                "recent_region_coverage_90d": quality_report.get(
+                    "recent_region_coverage_90d"
+                ),
+                "candidate_average_precision": candidate_metrics.get(
+                    "average_precision"
+                ),
+                "candidate_brier_score": candidate_metrics.get("brier_score"),
+                "model_ready_for_serving": learning_report.get(
+                    "model_ready_for_serving", False
+                ),
+                "warnings": quality_report.get("warnings"),
+            }
+        ]
+    )
+    if history_path.exists():
+        previous_history = pd.read_csv(history_path)
+        history = pd.concat(
+            [previous_history, history_row],
+            ignore_index=True,
+        )
+    else:
+        history = history_row
+
+    history = history.drop_duplicates(
+        subset=["generated_at"],
+        keep="last",
+    ).tail(104)
+    history.to_csv(history_path, index=False)
+
     return metadata
