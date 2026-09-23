@@ -22,5 +22,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Compile Python sources
+        run: python -m compileall -q src scripts streamlit_app.py
+
       - name: Run tests
         run: pytest
