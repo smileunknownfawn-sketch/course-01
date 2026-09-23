@@ -26,3 +26,17 @@ sources:
     type: missile_uav_history
     access: public_dataset
     notes: Secondary dataset; retain original source fields and provenance.
+
+  - id: viina
+    name: VIINA Ukraine Violence Data
+    url: https://github.com/scott4ai/ukraine-violence-data
+    type: geocoded_aerial_incident_evidence
+    access: public_github_dataset
+    notes: Independent media-derived incident evidence; aerial/uav classes are kept separate from Kaggle raw counts.
+
+  - id: etryvoga_history
+    name: Ukrainian Air Raid Sirens Dataset
+    url: https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset
+    type: air_alert_history
+    access: public_github_dataset
+    notes: Alert intervals are context only and must not be counted as attack facts.
