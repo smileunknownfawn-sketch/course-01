@@ -58,6 +58,39 @@ OBLAST_ALIASES = {
 }
 
 
+OBLAST_ALIASES.update({
+    "vinnytsia oblast": "Вінницька область",
+    "volyn oblast": "Волинська область",
+    "dnipropetrovsk oblast": "Дніпропетровська область",
+    "donetsk oblast": "Донецька область",
+    "zhytomyr oblast": "Житомирська область",
+    "zakarpattia oblast": "Закарпатська область",
+    "zaporizhzhia oblast": "Запорізька область",
+    "ivano-frankivsk oblast": "Івано-Франківська область",
+    "kyiv oblast": "Київська область",
+    "kirovohrad oblast": "Кіровоградська область",
+    "luhansk oblast": "Луганська область",
+    "lviv oblast": "Львівська область",
+    "mykolaiv oblast": "Миколаївська область",
+    "odesa oblast": "Одеська область",
+    "odessa oblast": "Одеська область",
+    "poltava oblast": "Полтавська область",
+    "rivne oblast": "Рівненська область",
+    "sumy oblast": "Сумська область",
+    "ternopil oblast": "Тернопільська область",
+    "kharkiv oblast": "Харківська область",
+    "kherson oblast": "Херсонська область",
+    "khmelnytskyi oblast": "Хмельницька область",
+    "cherkasy oblast": "Черкаська область",
+    "chernivtsi oblast": "Чернівецька область",
+    "chernihiv oblast": "Чернігівська область",
+    "kyiv": "Київ",
+    "crimea": "Автономна Республіка Крим",
+    "autonomous republic of crimea": "Автономна Республіка Крим",
+    "sevastopol": "Севастополь",
+})
+
+
 def normalize_oblast(value: object) -> str | None:
     if pd.isna(value):
         return None
