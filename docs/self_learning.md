@@ -51,8 +51,13 @@ A newly trained model is the **challenger**.
 
 The challenger is evaluated against the champion on the same time-based holdout.
 Promotion requires a meaningful improvement in probability calibration (Brier score) or average precision without material degradation in the other metric.
+Even a better candidate is **not** promoted while the data-quality report marks
+regional coverage as insufficient. Training still runs for diagnostics and
+records the reason for the blocked promotion. This prevents a scheduled run
+from silently replacing the current model using poorly labeled data.
 
-If no champion exists, the first model becomes the champion.
+If no champion exists, the first candidate becomes the champion only after
+passing both the data-quality gate and the baseline comparison.
 
 ## Persistence
 
@@ -80,6 +85,12 @@ Kaggle snapshot
   -> conditional promotion
   -> saved report/artifact
 ```
+
+The schedule and the rules run automatically after they are on the repository's
+default branch. They update data and evaluate models; they do not rewrite the
+project's source code. A future extension should compare several past time
+windows, track source freshness and label coverage, and report suggested code
+changes for review rather than editing and publishing code without checks.
 
 ## Local run
 

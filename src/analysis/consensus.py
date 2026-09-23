@@ -28,7 +28,9 @@ def build_oblast_consensus(
             .agg(kaggle_events=("attack_events", "sum"))
         )
     base = base.merge(kaggle_summary, on="oblast", how="left")
-    base["kaggle_events"] = base["kaggle_events"].fillna(0).astype("int64")
+    base["kaggle_events"] = pd.to_numeric(
+        base["kaggle_events"], errors="coerce"
+    ).fillna(0).astype("int64")
 
     viina_daily = viina_daily if viina_daily is not None else pd.DataFrame()
     if viina_daily.empty:
@@ -39,7 +41,9 @@ def build_oblast_consensus(
             .agg(viina_events=("viina_events", "sum"))
         )
     base = base.merge(viina_summary, on="oblast", how="left")
-    base["viina_events"] = base["viina_events"].fillna(0).astype("int64")
+    base["viina_events"] = pd.to_numeric(
+        base["viina_events"], errors="coerce"
+    ).fillna(0).astype("int64")
 
     siren_daily = siren_daily if siren_daily is not None else pd.DataFrame()
     if siren_daily.empty:
@@ -55,7 +59,9 @@ def build_oblast_consensus(
             )
         )
     base = base.merge(siren_summary, on="oblast", how="left")
-    base["alert_count"] = base["alert_count"].fillna(0).astype("int64")
+    base["alert_count"] = pd.to_numeric(
+        base["alert_count"], errors="coerce"
+    ).fillna(0).astype("int64")
     base["alert_minutes"] = pd.to_numeric(
         base["alert_minutes"], errors="coerce"
     ).fillna(0.0)

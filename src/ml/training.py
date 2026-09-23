@@ -225,3 +225,20 @@ def should_promote(
         return True, "Average precision improved without material calibration degradation"
 
     return False, "Candidate did not exceed promotion thresholds"
+
+
+def decide_promotion(
+    candidate: ModelMetrics,
+    baseline: ModelMetrics,
+    champion: ModelMetrics | None,
+    *,
+    quality_ready: bool,
+) -> tuple[bool, bool, str]:
+    """Evaluate a candidate while keeping incomplete regional data out of production."""
+    baseline_pass, baseline_reason = beats_baseline(candidate, baseline)
+    if not quality_ready:
+        return baseline_pass, False, "Data-quality gate blocks promotion"
+    if not baseline_pass:
+        return False, False, baseline_reason
+    promote, reason = should_promote(candidate, champion)
+    return True, promote, reason

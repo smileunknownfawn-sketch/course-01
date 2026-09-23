@@ -1,7 +1,7 @@
 import pandas as pd
 
 from src.ml.dataset import build_daily_oblast_dataset, chronological_split
-from src.ml.training import ModelMetrics, beats_baseline, should_promote
+from src.ml.training import ModelMetrics, beats_baseline, decide_promotion, should_promote
 
 
 def test_daily_dataset_uses_only_prior_days():
@@ -107,3 +107,14 @@ def test_candidate_must_beat_prevalence_baseline():
 
     assert beats_baseline(useful, baseline)[0] is True
     assert beats_baseline(miscalibrated, baseline)[0] is False
+
+    baseline_pass, promoted, reason = decide_promotion(
+        useful, baseline, None, quality_ready=False
+    )
+    assert baseline_pass is True
+    assert promoted is False
+    assert reason == "Data-quality gate blocks promotion"
+
+    assert decide_promotion(
+        useful, baseline, None, quality_ready=True
+    )[1] is True

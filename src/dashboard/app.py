@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import streamlit as st
 
 from src.analysis.consensus import build_oblast_consensus
@@ -92,6 +93,8 @@ READINESS_REASON_UA = {
 }
 
 DECISION_UA = {
+    "Data-quality gate blocks promotion":
+        "Оновлення моделі зупинено: регіональні дані недостатньо повні.",
     "Candidate did not exceed promotion thresholds":
         "Нова модель не перевищила пороги, необхідні для заміни чинної.",
     "Candidate exceeds prevalence baseline":
@@ -129,7 +132,9 @@ st.markdown(
       min-height: 112px;
     }
     [data-testid="stMetricLabel"] { color: #536981; font-weight: 600; }
+    [data-testid="stMetricLabel"] p { font-size: 1rem !important; line-height: 1.45; }
     [data-testid="stMetricValue"] { color: #113e68; font-weight: 750; letter-spacing: -.035em; }
+    [data-testid="stMetricValue"] div { font-size: clamp(1.7rem, 2.1vw, 2.35rem); }
     [data-testid="stSidebar"] { background: #eaf1fa; border-right: 1px solid #d9e4f0; }
     .stTabs [data-baseweb="tab-list"] { gap: .35rem; border-bottom: 1px solid #d6e3f0; }
     .stTabs [data-baseweb="tab"] { color: #48617c; font-weight: 650; padding: .75rem 1rem; }
@@ -139,6 +144,12 @@ st.markdown(
       padding: .65rem; overflow: hidden;
     }
     [data-testid="stCaptionContainer"] { color: #526981; }
+    [data-testid="stCaptionContainer"] p { font-size: .95rem !important; line-height: 1.55; }
+    [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li {
+      font-size: 1rem; line-height: 1.6;
+    }
+    [data-testid="stSidebar"] label, .stTabs [data-baseweb="tab"] { font-size: 1rem; }
+    [data-testid="stDataFrame"] { font-size: .95rem; }
     @media (max-width: 760px) {
       .block-container { padding: .85rem .75rem 2rem; }
       [data-testid="stMetric"] { min-height: 92px; padding: .8rem; }
@@ -197,6 +208,27 @@ def fmt_pct_points(value: object) -> str:
         return "—"
 
 
+def chart_frequency(start: pd.Timestamp, end: pd.Timestamp) -> str:
+    days = (end - start).days
+    return "MS" if days > 180 else "W-MON" if days > 45 else "D"
+
+
+def style_chart(fig: go.Figure, *, height: int) -> go.Figure:
+    fig.update_layout(
+        template="plotly_white", height=height,
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Arial, sans-serif", size=15, color="#233c58"),
+        hoverlabel=dict(font_size=15, bgcolor="#ffffff", font_color="#17334e"),
+        margin=dict(l=22, r=26, t=32, b=42),
+        legend=dict(font_size=14, orientation="h", y=1.16),
+    )
+    fig.update_xaxes(tickfont_size=14, title_font_size=15, showgrid=False,
+                     linecolor="#ccdbe9", zeroline=False)
+    fig.update_yaxes(tickfont_size=14, title_font_size=15,
+                     gridcolor="#e6edf5", zeroline=False)
+    return fig
+
+
 def parse_dates(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     result = df.copy()
     for column in columns:
@@ -212,15 +244,15 @@ def translate_reason(reason: object) -> str:
     if text in READINESS_REASON_UA:
         return READINESS_REASON_UA[text]
     if "Overall region-label coverage is only" in text:
-        value = text.split("only", 1)[-1].strip()
+        value = text.split("only", 1)[-1].strip().replace(".", ",")
         return f"Загальне покриття подій регіональними мітками становить лише {value}."
     if "Recent 90-day region-label coverage is below" in text:
-        value = text.split("below", 1)[-1].strip()
+        value = text.split("below", 1)[-1].strip().replace(".", ",")
         return (
             "Покриття регіональними мітками за останні 90 днів "
             f"нижче {value}."
         )
-    return text
+    return "Система не розпізнала причину; подробиці є у звіті навчання."
 
 
 def selected_map_oblast(event: object) -> str | None:
@@ -277,8 +309,8 @@ st.caption(
 
 if not metadata or national_daily.empty:
     st.error(
-        "Знімок даних для панелі ще не створений. Потрібно виконати "
-        "python scripts/build_dashboard_data.py після підготовки даних."
+        "Дані для панелі ще не підготовлено. Запустіть оновлення джерел "
+        "за інструкцією проєкту та відкрийте сторінку знову."
     )
     st.stop()
 
@@ -487,44 +519,42 @@ with overview_tab:
         "та не є прогнозом майбутніх подій."
     )
 
-    st.subheader("Динаміка історичних записів")
+    st.subheader("Як змінювалася кількість записів")
     if overview_daily.empty and source_viina.empty:
         st.info("За вибраний період для цієї області немає розмічених записів.")
     else:
-        timeline = overview_daily.melt(
-            id_vars=["day"],
-            value_vars=["all_events", "uav_events", "missile_events", "guided_bomb_events"],
-            var_name="series",
-            value_name="count",
-        ) if not overview_daily.empty else pd.DataFrame(columns=["day", "series", "count"])
-        labels = {
-            "all_events": "Усі події",
-            "uav_events": "БпЛА",
-            "missile_events": "Ракети",
-            "guided_bomb_events": "Керовані авіабомби",
-        }
-        timeline["series"] = timeline["series"].map(labels)
-        if not source_viina.empty:
-            viina_timeline = source_viina.groupby("day", as_index=False)["viina_events"].sum()
-            viina_timeline = viina_timeline.rename(columns={"viina_events": "count"})
-            viina_timeline["series"] = "VIINA: повітряні інциденти"
-            timeline = (
-                pd.concat([timeline, viina_timeline], ignore_index=True)
-                if not timeline.empty else viina_timeline
+        frequency = chart_frequency(start_day, end_day)
+        fig = make_subplots(
+            rows=2, cols=1, shared_xaxes=True, vertical_spacing=.18,
+            subplot_titles=("Записи атак · Kaggle", "Повітряні інциденти · VIINA"),
+        )
+        for row, source, column, color, fill in (
+            (1, overview_daily, "all_events", "#156fa6", "rgba(21,111,166,.19)"),
+            (2, source_viina, "viina_events", "#158f88", "rgba(21,143,136,.18)"),
+        ):
+            if source.empty:
+                fig.add_annotation(
+                    text="Немає записів за вибраний період", row=row, col=1,
+                    showarrow=False, font=dict(size=15, color="#657a91"),
+                )
+                continue
+            series = (
+                source.set_index("day")[column]
+                .resample(frequency).sum().reset_index()
             )
-        fig = px.line(
-            timeline,
-            x="day",
-            y="count",
-            color="series",
-            labels={"day": "Дата", "count": "Кількість", "series": "Категорія"},
-        )
-        fig.update_layout(
-            height=330, margin=dict(l=12, r=12, t=20, b=20),
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            legend=dict(orientation="h", y=1.18),
-        )
-        st.plotly_chart(fig, width="stretch")
+            fig.add_trace(go.Scatter(
+                x=series["day"], y=series[column], mode="lines",
+                line=dict(color=color, width=3, shape="spline", smoothing=.45),
+                fill="tozeroy", fillcolor=fill, showlegend=False,
+                hovertemplate="%{x|%d.%m.%Y}<br>Записів: %{y:,.0f}<extra></extra>",
+            ), row=row, col=1)
+        style_chart(fig, height=510)
+        fig.update_annotations(font=dict(size=16, color="#23425e"))
+        fig.update_yaxes(title_text="Кількість", row=1, col=1)
+        fig.update_yaxes(title_text="Кількість", row=2, col=1)
+        fig.update_xaxes(title_text="Дата", row=2, col=1)
+        st.caption("Кожне джерело має власну шкалу. Дані згруповано за днями, тижнями або місяцями відповідно до періоду.")
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     st.subheader("Структура подій за типом")
     structure = pd.DataFrame(
@@ -545,26 +575,28 @@ with overview_tab:
         structure["Частка, %"] = (
             structure["Кількість"] / structure["Кількість"].sum() * 100
         )
-        structure_chart = px.bar(
-            structure.sort_values("Частка, %"),
-            x="Частка, %",
-            y="Категорія",
-            orientation="h",
-            text="Частка, %",
-            hover_data={"Кількість": True, "Частка, %": ":.1f"},
-            range_x=[0, 105],
-        )
-        structure_chart.update_traces(
-            texttemplate="%{text:.1f}%",
-            textposition="outside",
-            cliponaxis=False,
-        )
-        structure_chart.update_layout(
-            margin=dict(l=10, r=28, t=10, b=10),
-            height=max(210, 65 * len(structure) + 70),
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        )
-        st.plotly_chart(structure_chart, width="stretch")
+        structure = structure.sort_values("Частка, %")
+        structure_chart = go.Figure(go.Bar(
+            x=structure["Частка, %"], y=structure["Категорія"],
+            orientation="h", width=.57,
+            marker=dict(color=[
+                {"БпЛА": "#147bb3", "Ракети": "#e4a04b",
+                 "Керовані авіабомби": "#755eaa"}.get(category, "#5786a5")
+                for category in structure["Категорія"]
+            ], line_width=0),
+            text=[
+                f"{fmt_pct_points(share)} · {fmt_int(count)}"
+                for share, count in zip(structure["Частка, %"], structure["Кількість"])
+            ],
+            textposition="outside", textfont=dict(size=15, color="#213b55"),
+            customdata=structure["Кількість"],
+            hovertemplate="%{y}<br>Частка: %{x:.1f}%<br>Записів: %{customdata:,.0f}<extra></extra>",
+        ))
+        style_chart(structure_chart, height=max(230, 75 * len(structure) + 85))
+        structure_chart.update_layout(margin=dict(l=22, r=125, t=20, b=40))
+        structure_chart.update_xaxes(range=[0, 108], title_text="Частка записів, %", showgrid=True)
+        structure_chart.update_yaxes(title_text=None, showgrid=False)
+        st.plotly_chart(structure_chart, width="stretch", config={"displayModeBar": False})
 
         structure_table = structure.copy()
         structure_table["Частка, %"] = structure_table["Частка, %"].map(fmt_pct_points)
@@ -572,6 +604,7 @@ with overview_tab:
             structure_table,
             width="stretch",
             hide_index=True,
+            row_height=42,
         )
 
 with interception_tab:
@@ -623,24 +656,26 @@ with interception_tab:
             st.subheader("Розподіл за типом цілей")
             bar = go.Figure()
             for column, title, color in (
-                ("intercepted", "Заявлено збито", "#1787a1"),
-                ("not_confirmed_intercepted", "Без підтвердженого збиття", "#e9a24b"),
+                ("intercepted", "Заявлено збито", "#158f88"),
+                ("not_confirmed_intercepted", "Без підтвердженого збиття", "#e4a04b"),
             ):
+                shares = by_type[column] / by_type["launched"] * 100
                 bar.add_trace(go.Bar(
-                    y=by_type["Тип"], x=by_type[column], name=title,
-                    orientation="h", marker_color=color,
-                    text=[fmt_int(value) if value else "" for value in by_type[column]],
+                    y=by_type["Тип"], x=shares, name=title,
+                    orientation="h", marker=dict(color=color, line_width=0),
+                    customdata=by_type[column],
+                    text=[fmt_pct_points(value) if value >= 7 else "" for value in shares],
+                    textfont=dict(size=15, color="#ffffff"),
                     textposition="inside",
-                    hovertemplate="%{y}<br>" + title + ": %{x:,.0f}<extra></extra>",
+                    hovertemplate="%{y}<br>" + title
+                    + ": %{customdata:,.0f} (%{x:.1f}%)<extra></extra>",
                 ))
-            bar.update_layout(
-                barmode="stack", template="plotly_white", height=max(260, 100 * len(by_type) + 90),
-                margin=dict(l=10, r=20, t=24, b=35),
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#26445e", size=14), legend=dict(orientation="h", y=1.22),
-                xaxis_title="Кількість цілей", yaxis_title=None,
-            )
-            st.plotly_chart(bar, width="stretch")
+            style_chart(bar, height=max(270, 105 * len(by_type) + 100))
+            bar.update_layout(barmode="stack", bargap=.44,
+                              legend=dict(orientation="h", y=1.26))
+            bar.update_xaxes(range=[0, 100], title_text="Частка від запущених, %")
+            bar.update_yaxes(title_text=None, showgrid=False)
+            st.plotly_chart(bar, width="stretch", config={"displayModeBar": False})
 
             table = by_type[["Тип", "launched", "intercepted", "not_confirmed_intercepted", "Частка збиття, %"]].copy()
             table["Частка збиття, %"] = table["Частка збиття, %"].map(fmt_pct_points)
@@ -648,29 +683,35 @@ with interception_tab:
                 "launched": "Запущено", "intercepted": "Збито",
                 "not_confirmed_intercepted": "Без підтвердженого збиття",
             })
-            st.dataframe(table, width="stretch", hide_index=True)
+            st.dataframe(table, width="stretch", hide_index=True, row_height=42)
 
         st.subheader("Як змінювалися повідомлені кількості")
         period_days = (end_day - start_day).days
-        frequency = "MS" if period_days > 180 else "W-MON" if period_days > 45 else "D"
+        frequency = chart_frequency(start_day, end_day)
         history = (
             period_interception.set_index("day")
             .resample(frequency)[["launched", "intercepted"]]
             .sum()
             .reset_index()
         )
-        history = history.melt(id_vars="day", var_name="Показник", value_name="Кількість")
-        history["Показник"] = history["Показник"].map({"launched": "Запущено", "intercepted": "Збито"})
-        history_chart = px.line(
-            history, x="day", y="Кількість", color="Показник", markers=period_days <= 45,
-            labels={"day": "Дата"}, color_discrete_map={"Запущено": "#176ea8", "Збито": "#1787a1"},
-        )
-        history_chart.update_layout(
-            height=330, margin=dict(l=12, r=12, t=18, b=20),
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            legend=dict(orientation="h", y=1.14),
-        )
-        st.plotly_chart(history_chart, width="stretch")
+        history["remaining"] = history["launched"] - history["intercepted"]
+        history_chart = go.Figure()
+        for column, title, line_color, fill_color in (
+            ("intercepted", "Заявлено збито", "#158f88", "rgba(21,143,136,.76)"),
+            ("remaining", "Без підтвердженого збиття", "#da953d", "rgba(228,160,75,.68)"),
+        ):
+            history_chart.add_trace(go.Scatter(
+                x=history["day"], y=history[column], name=title,
+                mode="lines", stackgroup="кількість",
+                line=dict(color=line_color, width=1.8), fillcolor=fill_color,
+                hovertemplate="%{x|%d.%m.%Y}<br>" + title
+                + ": %{y:,.0f}<extra></extra>",
+            ))
+        style_chart(history_chart, height=360)
+        history_chart.update_layout(hovermode="x unified")
+        history_chart.update_xaxes(title_text="Дата")
+        history_chart.update_yaxes(title_text="Кількість цілей")
+        st.plotly_chart(history_chart, width="stretch", config={"displayModeBar": False})
 
         with st.expander("Переглянути записи за датою і типом"):
             daily_table = period_interception[[
@@ -684,7 +725,7 @@ with interception_tab:
             })
             st.dataframe(
                 daily_table[["Дата", "Тип", "Запущено", "Збито", "Без підтвердженого збиття"]],
-                width="stretch", hide_index=True, height=360,
+                width="stretch", hide_index=True, height=360, row_height=42,
             )
 
         if not interception_coverage.empty:
@@ -769,10 +810,11 @@ with regions_tab:
                     "evidence_sources": "Джерел з подіями",
                 },
             )
-            map_fig.update_traces(marker_line_width=0.8)
+            map_fig.update_traces(marker_line_width=0.9, marker_line_color="#f3f7fc")
             map_fig.update_geos(
                 fitbounds="locations",
                 visible=False,
+                bgcolor="rgba(0,0,0,0)",
             )
             map_fig.update_layout(
                 margin=dict(l=0, r=0, t=10, b=0),
@@ -780,6 +822,9 @@ with regions_tab:
                 clickmode="event+select",
                 height=680,
                 paper_bgcolor="rgba(0,0,0,0)",
+                font=dict(family="Arial, sans-serif", size=15, color="#233c58"),
+                hoverlabel=dict(font_size=15, bgcolor="#ffffff"),
+                coloraxis_colorbar=dict(tickfont_size=14, title_font_size=14),
             )
             map_event = st.plotly_chart(
                 map_fig,
@@ -787,6 +832,7 @@ with regions_tab:
                 key="oblast_map",
                 on_select="rerun",
                 selection_mode="points",
+                config={"displayModeBar": False},
             )
             clicked_oblast = selected_map_oblast(map_event)
             if clicked_oblast != st.session_state.get("last_map_selection"):
@@ -796,7 +842,7 @@ with regions_tab:
                     st.rerun()
         else:
             st.warning(
-                "GeoJSON карти тимчасово недоступний. Дані по областях "
+                "Межі областей тимчасово недоступні. Дані по областях "
                 "залишаються доступними у таблиці."
             )
 
@@ -831,6 +877,7 @@ with regions_tab:
             on_select="rerun",
             selection_mode="single-row",
             height=620,
+            row_height=42,
         )
 
     table_oblast: str | None = None
@@ -896,30 +943,36 @@ with regions_tab:
             )
 
         if not kaggle_region.empty or not viina_region.empty:
-            if kaggle_region.empty:
-                detail_daily = viina_region
-            elif viina_region.empty:
-                detail_daily = kaggle_region
-            else:
-                detail_daily = kaggle_region.merge(
-                    viina_region,
-                    on="day",
-                    how="outer",
-                )
-            detail_daily = detail_daily.fillna(0).sort_values("day")
-            detail_long = detail_daily.melt(
-                id_vars=["day"],
-                var_name="Джерело",
-                value_name="Кількість",
+            detail_fig = make_subplots(
+                rows=2, cols=1, shared_xaxes=True, vertical_spacing=.2,
+                subplot_titles=("Записи атак · Kaggle", "Повітряні інциденти · VIINA"),
             )
-            detail_fig = px.line(
-                detail_long,
-                x="day",
-                y="Кількість",
-                color="Джерело",
-                labels={"day": "Дата"},
-            )
-            st.plotly_chart(detail_fig, width="stretch")
+            for row_number, frame, column, color, fill in (
+                (1, kaggle_region, "Kaggle: записи атак", "#156fa6", "rgba(21,111,166,.18)"),
+                (2, viina_region, "VIINA: повітряні інциденти", "#158f88", "rgba(21,143,136,.18)"),
+            ):
+                if frame.empty:
+                    detail_fig.add_annotation(
+                        text="Немає записів за вибраний період",
+                        row=row_number, col=1, showarrow=False,
+                        font=dict(size=15, color="#657a91"),
+                    )
+                    continue
+                series = frame.set_index("day")[column].resample(
+                    chart_frequency(start_day, end_day)
+                ).sum().reset_index()
+                detail_fig.add_trace(go.Scatter(
+                    x=series["day"], y=series[column], mode="lines",
+                    line=dict(color=color, width=3, shape="spline", smoothing=.4),
+                    fill="tozeroy", fillcolor=fill, showlegend=False,
+                    hovertemplate="%{x|%d.%m.%Y}<br>Записів: %{y:,.0f}<extra></extra>",
+                ), row=row_number, col=1)
+            style_chart(detail_fig, height=460)
+            detail_fig.update_annotations(font=dict(size=16, color="#23425e"))
+            detail_fig.update_yaxes(title_text="Кількість", row=1, col=1)
+            detail_fig.update_yaxes(title_text="Кількість", row=2, col=1)
+            detail_fig.update_xaxes(title_text="Дата", row=2, col=1)
+            st.plotly_chart(detail_fig, width="stretch", config={"displayModeBar": False})
 
         st.caption(
             "Kaggle та VIINA мають різні методики збору, тому їхні сирі "
@@ -943,22 +996,34 @@ with risk_tab:
     )
 
     if not risk_summary.empty:
-        risk_chart = px.bar(
-            risk_summary.head(15),
-            x="consensus_share_pct",
-            y="oblast",
-            orientation="h",
-            hover_data=["kaggle_events", "viina_events", "alert_count"],
-            labels={
-                "consensus_share_pct": "Узгоджена історична частка, %",
-                "oblast": "Область",
-                "kaggle_events": "Kaggle",
-                "viina_events": "VIINA",
-                "alert_count": "Тривоги",
-            },
+        ranked = risk_summary.head(15).sort_values("consensus_share_pct")
+        max_share = float(ranked["consensus_share_pct"].max())
+        colors = [
+            "#e4a04b" if name == selected_oblast else
+            px.colors.sample_colorscale(
+                "Blues", .32 + .55 * float(share) / max(max_share, 1)
+            )[0]
+            for name, share in zip(ranked["oblast"], ranked["consensus_share_pct"])
+        ]
+        risk_chart = go.Figure(go.Bar(
+            x=ranked["consensus_share_pct"], y=ranked["oblast"],
+            orientation="h", marker=dict(color=colors, line_width=0),
+            customdata=ranked[["kaggle_events", "viina_events", "alert_count"]],
+            text=[fmt_pct_points(value) for value in ranked["consensus_share_pct"]],
+            textposition="outside", textfont=dict(size=14, color="#243e58"),
+            hovertemplate=(
+                "%{y}<br>Узгоджена частка: %{x:.1f}%<br>"
+                "Kaggle: %{customdata[0]:,.0f}<br>VIINA: %{customdata[1]:,.0f}<br>"
+                "Тривоги: %{customdata[2]:,.0f}<extra></extra>"
+            ),
+        ))
+        style_chart(risk_chart, height=650)
+        risk_chart.update_layout(margin=dict(l=20, r=70, t=20, b=42), bargap=.3)
+        risk_chart.update_xaxes(
+            range=[0, max(1, max_share * 1.22)], title_text="Узгоджена частка, %"
         )
-        risk_chart.update_layout(yaxis={"categoryorder": "total ascending"})
-        st.plotly_chart(risk_chart, width="stretch")
+        risk_chart.update_yaxes(title_text=None, showgrid=False)
+        st.plotly_chart(risk_chart, width="stretch", config={"displayModeBar": False})
 
     st.info(
         "Це історична мультиджерельна аналітика, а не твердження про місце "
@@ -1000,7 +1065,9 @@ with quality_tab:
     for key, value in quality.items():
         if key == "model_readiness_reasons":
             continue
-        label = QUALITY_LABELS_UA.get(key, key)
+        if key not in QUALITY_LABELS_UA:
+            continue
+        label = QUALITY_LABELS_UA[key]
         if key in {"region_coverage_rate", "recent_region_coverage_90d"}:
             value = fmt_pct(value)
         elif key == "model_ready_for_serving":
@@ -1011,6 +1078,7 @@ with quality_tab:
         pd.DataFrame(quality_rows),
         width="stretch",
         hide_index=True,
+        row_height=42,
     )
 
 with ml_tab:
@@ -1019,6 +1087,12 @@ with ml_tab:
         "Модель автоматично перенавчається на нових історичних даних і "
         "замінює чинну модель лише тоді, коли кандидат проходить контроль якості."
     )
+    if not quality.get("model_ready_for_serving", False):
+        st.warning(
+            "Автоматичне підвищення моделі заблоковано, доки регіональні "
+            "дані не стануть достатньо повними. Навчання й порівняння "
+            "кандидатів тривають для перевірки методики."
+        )
 
     candidate = learning.get("candidate_metrics") or {}
     baseline = learning.get("baseline_metrics") or {}
@@ -1026,7 +1100,7 @@ with ml_tab:
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric(
-        "ROC AUC кандидата",
+        "Якість розрізнення кандидата",
         f"{candidate.get('roc_auc'):.3f}".replace(".", ",")
         if candidate.get("roc_auc") is not None
         else "—",
@@ -1059,7 +1133,9 @@ with ml_tab:
         )
 
     decision = str(learning.get("decision_reason", "—"))
-    st.write("Рішення системи:", DECISION_UA.get(decision, decision))
+    st.write("Рішення системи:", DECISION_UA.get(
+        decision, "Причину рішення не розпізнано; перевірте звіт моделі."
+    ))
     st.write(
         "Готовність до публікації модельної оцінки:",
         "так" if learning.get("model_ready_for_serving") else "ні",
@@ -1075,7 +1151,7 @@ with ml_tab:
             comparison_rows.append(
                 {
                     "Модель": name,
-                    "ROC AUC": metrics.get("roc_auc"),
+                    "Якість розрізнення": metrics.get("roc_auc"),
                     "Середня точність": metrics.get("average_precision"),
                     "Показник Брієра": metrics.get("brier_score"),
                     "Збалансована точність": metrics.get("balanced_accuracy"),
@@ -1086,7 +1162,14 @@ with ml_tab:
             pd.DataFrame(comparison_rows),
             width="stretch",
             hide_index=True,
+            row_height=42,
         )
+
+    st.caption(
+        "Якість розрізнення та середня точність: більше — краще. "
+        "Показник Брієра: менше — краще. За низького покриття областей "
+        "ці метрики не підтверджують готовність до прогнозу."
+    )
 
     st.markdown(
         "**Що система робить сама:** завантажує нові історичні дані, "
@@ -1101,6 +1184,6 @@ with ml_tab:
 
 st.divider()
 st.caption(
-    "Навчальний Data Science проєкт. Показники залежать від повноти "
+    "Навчальний проєкт з аналізу даних. Показники залежать від повноти "
     "відкритих джерел; відсутність запису не означає відсутність події."
 )

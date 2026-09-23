@@ -22,10 +22,9 @@ from src.ml.registry import (
     save_candidate,
 )
 from src.ml.training import (
-    beats_baseline,
+    decide_promotion,
     evaluate_model,
     evaluate_prevalence_baseline,
-    should_promote,
     train_model,
 )
 
@@ -66,14 +65,13 @@ def main() -> None:
     data_end = str(dataset["day"].max())
     save_candidate(candidate, candidate_metrics, data_start, data_end)
 
-    baseline_pass, baseline_reason = beats_baseline(
-        candidate_metrics, baseline_metrics
+    quality_ready = bool(quality.get("model_ready_for_serving", False))
+    baseline_pass, promote, reason = decide_promotion(
+        candidate_metrics,
+        baseline_metrics,
+        champion_metrics,
+        quality_ready=quality_ready,
     )
-    if baseline_pass:
-        promote, reason = should_promote(candidate_metrics, champion_metrics)
-    else:
-        promote = False
-        reason = baseline_reason
 
     if promote:
         promote_candidate(reason)
@@ -87,9 +85,8 @@ def main() -> None:
         "candidate_metrics": asdict(candidate_metrics),
         "baseline_metrics": asdict(baseline_metrics),
         "beats_baseline": baseline_pass,
-        "model_ready_for_serving": bool(
-            quality.get("model_ready_for_serving", False) and baseline_pass
-        ),
+        "model_ready_for_serving": bool(quality_ready and baseline_pass),
+        "quality_gate_passed": quality_ready,
         "model_readiness_reasons": quality.get(
             "model_readiness_reasons",
             ["Data-quality readiness report was unavailable"],
