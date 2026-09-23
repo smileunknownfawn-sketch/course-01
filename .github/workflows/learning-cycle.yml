@@ -1,5 +1,9 @@
 name: weekly-learning-cycle
 
+concurrency:
+  group: weekly-learning-cycle-main
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:
@@ -14,7 +18,7 @@ on:
     - cron: "0 3 * * 1"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   learn:
@@ -52,6 +56,9 @@ jobs:
       - name: Run controlled learning cycle
         run: python scripts/self_improve.py
 
+      - name: Build dashboard snapshot
+        run: python scripts/build_dashboard_data.py
+
       - name: Run test suite
         run: pytest
 
@@ -61,6 +68,19 @@ jobs:
         with:
           path: models
           key: ml-champion-${{ github.run_id }}
+
+      - name: Publish dashboard snapshot
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f data/dashboard/*.csv data/dashboard/*.json
+          if git diff --cached --quiet; then
+            echo "Dashboard snapshot unchanged"
+          else
+            git commit -m "Update dashboard snapshot [skip ci]"
+            git push
+          fi
 
       - name: Upload learning report
         if: always()
@@ -73,5 +93,7 @@ jobs:
             data/processed/unmapped_regions.csv
             data/processed/source_duplicates.csv
             data/processed/data_quality_report.json
+            data/dashboard/*.csv
+            data/dashboard/*.json
           if-no-files-found: warn
           retention-days: 30
