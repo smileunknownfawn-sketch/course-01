@@ -83,24 +83,43 @@ def find_unmapped_regions(value: object) -> list[str]:
     return unmapped
 
 
-def _stable_attack_id(row: pd.Series) -> int:
-    payload = "|".join(
-        [
-            str(row.get("time_start", "")),
-            str(row.get("time_end", "")),
-            str(row.get("model", "")),
-            str(row.get("source", "")),
-            str(row.get("launched", "")),
-        ]
-    )
-    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:15]
-    return int(digest, 16)
+def _source_record_hash(row: pd.Series, raw_columns: list[str]) -> str:
+    """Hash the complete normalized source row for stable provenance."""
+    parts: list[str] = []
+    for column in sorted(raw_columns):
+        value = row.get(column)
+        text = "" if pd.isna(value) else str(value).strip()
+        parts.append(f"{column}={text}")
+    payload = "\\x1f".join(parts)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _attack_id_from_hash(record_hash: str) -> int:
+    # 15 hex chars fit safely inside a signed BIGINT and are deterministic.
+    return int(record_hash[:15], 16)
 
 
 def transform_kaggle_attacks(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     """Transform Kaggle rows into normalized project tables."""
     source = normalize_source_columns(df)
     validate_source_columns(source)
+    raw_columns = list(source.columns)
+    source["source_record_hash"] = source.apply(
+        lambda row: _source_record_hash(row, raw_columns), axis=1
+    )
+
+    exact_duplicate_mask = source["source_record_hash"].duplicated(keep=False)
+    source_duplicates = source.loc[
+        exact_duplicate_mask,
+        ["source_record_hash", "time_start", "model", "source"],
+    ].copy()
+    source_duplicates["duplicate_count"] = source_duplicates.groupby(
+        "source_record_hash"
+    )["source_record_hash"].transform("size")
+    source_duplicates = source_duplicates.drop_duplicates("source_record_hash")
+
+    # Byte-equivalent source records are collapsed once and separately reported.
+    source = source.drop_duplicates("source_record_hash", keep="first").copy()
 
     source["started_at"] = pd.to_datetime(source["time_start"], utc=True, errors="coerce", format="mixed")
     if source["started_at"].isna().any():
@@ -112,9 +131,9 @@ def transform_kaggle_attacks(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     else:
         source["ended_at"] = pd.NaT
 
-    source["attack_id"] = source.apply(_stable_attack_id, axis=1)
+    source["attack_id"] = source["source_record_hash"].map(_attack_id_from_hash)
     if source["attack_id"].duplicated().any():
-        raise ValueError("Stable attack_id collision or duplicate source rows detected")
+        raise ValueError("Stable attack_id hash collision detected")
 
     source["weapon_category"] = source["model"].map(classify_weapon)
     source["quantity"] = pd.to_numeric(source["launched"], errors="coerce").astype("Int64")
@@ -168,7 +187,7 @@ def transform_kaggle_attacks(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
         ["attack_id", "weapon_category", "model", "quantity", "intercepted_quantity"]
     ].rename(columns={"weapon_category": "category", "model": "type"})
 
-    provenance = source[["attack_id", "source"]].rename(
+    provenance = source[["attack_id", "source", "source_record_hash"]].rename(
         columns={"source": "source_reference"}
     )
     provenance["source_event_id"] = provenance["attack_id"].astype("string")
@@ -179,6 +198,7 @@ def transform_kaggle_attacks(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
         "weapons": weapons,
         "provenance": provenance,
         "unmapped_regions": unmapped_regions,
+        "source_duplicates": source_duplicates,
     }
 
 
