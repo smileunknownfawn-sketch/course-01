@@ -42,11 +42,11 @@ def classify_weapon(model: object) -> str:
 
 
 def _candidate_regions(value: object) -> list[str]:
-    if pd.isna(value):
-        return []
-
     if isinstance(value, (list, tuple, set)):
         return [str(item).strip() for item in value if str(item).strip()]
+
+    if pd.isna(value):
+        return []
 
     text = str(value).strip()
     if not text or text in {"[]", "{}"}:
