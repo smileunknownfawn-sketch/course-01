@@ -11,6 +11,8 @@ on:
     paths:
       - "src/ml/**"
       - "src/data/**"
+      - "src/dashboard/**"
+      - "streamlit_app.py"
       - "scripts/**"
       - "requirements.txt"
       - ".github/workflows/learning-cycle.yml"
@@ -79,7 +81,9 @@ jobs:
             echo "Dashboard snapshot unchanged"
           else
             git commit -m "Update dashboard snapshot [skip ci]"
-            git push
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
           fi
 
       - name: Upload learning report
