@@ -8,6 +8,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.analysis.improvement import (
+    build_improvement_recommendations,
+    project_readiness_score,
+)
+
 DASHBOARD_DIR = Path("data/dashboard")
 
 
@@ -147,6 +152,21 @@ def write_dashboard_snapshot(
         attacks["started_at"], utc=True, errors="coerce", format="mixed"
     ).max()
 
+    recommendations = build_improvement_recommendations(
+        quality_report,
+        learning_report,
+        latest_source_event_at=(
+            latest_source.isoformat() if pd.notna(latest_source) else None
+        ),
+    )
+    readiness_score = project_readiness_score(
+        quality_report,
+        learning_report,
+        latest_source_event_at=(
+            latest_source.isoformat() if pd.notna(latest_source) else None
+        ),
+    )
+
     metadata: dict[str, object] = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "latest_source_event_at": (
@@ -159,6 +179,8 @@ def write_dashboard_snapshot(
         "weapon_rows": int(len(weapons)),
         "quality": quality_report,
         "learning": learning_report,
+        "technical_readiness_score": readiness_score,
+        "improvement_recommendations": recommendations,
         "safety_scope": (
             "Historical aggregated oblast-level analysis only; no live routes, "
             "exact targets, launch coordinates, or operational timing."
