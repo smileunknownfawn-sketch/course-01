@@ -21,7 +21,13 @@ from src.ml.registry import (
     promote_candidate,
     save_candidate,
 )
-from src.ml.training import evaluate_model, should_promote, train_model
+from src.ml.training import (
+    beats_baseline,
+    evaluate_model,
+    evaluate_prevalence_baseline,
+    should_promote,
+    train_model,
+)
 
 
 def main() -> None:
@@ -44,6 +50,7 @@ def main() -> None:
 
     candidate = train_model(train)
     candidate_metrics = evaluate_model(candidate, test)
+    baseline_metrics = evaluate_prevalence_baseline(train, test)
 
     champion = load_champion_model()
     champion_metrics = evaluate_model(champion, test) if champion is not None else None
@@ -52,7 +59,15 @@ def main() -> None:
     data_end = str(dataset["day"].max())
     save_candidate(candidate, candidate_metrics, data_start, data_end)
 
-    promote, reason = should_promote(candidate_metrics, champion_metrics)
+    baseline_pass, baseline_reason = beats_baseline(
+        candidate_metrics, baseline_metrics
+    )
+    if baseline_pass:
+        promote, reason = should_promote(candidate_metrics, champion_metrics)
+    else:
+        promote = False
+        reason = baseline_reason
+
     if promote:
         promote_candidate(reason)
 
@@ -63,6 +78,8 @@ def main() -> None:
         "train_rows": len(train),
         "test_rows": len(test),
         "candidate_metrics": asdict(candidate_metrics),
+        "baseline_metrics": asdict(baseline_metrics),
+        "beats_baseline": baseline_pass,
         "champion_metrics_on_same_holdout": (
             asdict(champion_metrics) if champion_metrics is not None else None
         ),
