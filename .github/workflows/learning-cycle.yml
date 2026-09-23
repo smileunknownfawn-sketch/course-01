@@ -52,6 +52,12 @@ jobs:
       - name: Build normalized tables
         run: python scripts/build_processed_kaggle.py
 
+      - name: Download additional public sources
+        run: python scripts/download_public_context.py
+
+      - name: Build multi-source context
+        run: python scripts/build_multisource_context.py
+
       - name: Validate data quality
         run: python scripts/data_quality_report.py
 
