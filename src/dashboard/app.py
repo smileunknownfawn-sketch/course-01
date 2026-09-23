@@ -316,6 +316,17 @@ period_oblast_daily = oblast_daily[
     & (oblast_daily["day"] < end_day)
 ].copy()
 
+if selected_oblast == "Усі області":
+    overview_daily = filtered_national.copy()
+    overview_daily["all_events"] = overview_daily["attack_records"]
+    scope_title = "Україна"
+else:
+    overview_daily = period_oblast_daily[
+        period_oblast_daily["oblast"] == selected_oblast
+    ].copy()
+    overview_daily["all_events"] = overview_daily["attack_events"]
+    scope_title = selected_oblast
+
 overview_tab, regions_tab, risk_tab, quality_tab, ml_tab, improve_tab = st.tabs(
     [
         "Огляд",
@@ -328,122 +339,170 @@ overview_tab, regions_tab, risk_tab, quality_tab, ml_tab, improve_tab = st.tabs(
 )
 
 with overview_tab:
-    last_30_start = max_day - pd.Timedelta(days=29)
-    previous_30_start = last_30_start - pd.Timedelta(days=30)
+    st.subheader(f"Огляд: {scope_title}")
 
-    current_30 = national_daily[
-        (national_daily["day"] >= last_30_start)
-        & (national_daily["day"] <= max_day)
-    ]
-    previous_30 = national_daily[
-        (national_daily["day"] >= previous_30_start)
-        & (national_daily["day"] < last_30_start)
-    ]
+    if selected_oblast == "Усі області":
+        current_30 = national_daily[
+            (national_daily["day"] >= max_day - pd.Timedelta(days=29))
+            & (national_daily["day"] <= max_day)
+        ].copy()
+        previous_30 = national_daily[
+            (national_daily["day"] >= max_day - pd.Timedelta(days=59))
+            & (national_daily["day"] < max_day - pd.Timedelta(days=29))
+        ].copy()
+        current_count = float(current_30["attack_records"].sum())
+        previous_count = float(previous_30["attack_records"].sum())
+    else:
+        current_30 = oblast_daily[
+            (oblast_daily["oblast"] == selected_oblast)
+            & (oblast_daily["day"] >= max_day - pd.Timedelta(days=29))
+            & (oblast_daily["day"] <= max_day)
+        ].copy()
+        previous_30 = oblast_daily[
+            (oblast_daily["oblast"] == selected_oblast)
+            & (oblast_daily["day"] >= max_day - pd.Timedelta(days=59))
+            & (oblast_daily["day"] < max_day - pd.Timedelta(days=29))
+        ].copy()
+        current_count = float(current_30["attack_events"].sum())
+        previous_count = float(previous_30["attack_events"].sum())
 
-    current_count = float(current_30["attack_records"].sum())
-    previous_count = float(previous_30["attack_records"].sum())
     change_pct = (
         (current_count - previous_count) / previous_count * 100
         if previous_count
         else None
     )
 
-    recent_regions = oblast_daily[
-        (oblast_daily["day"] >= last_30_start)
-        & (oblast_daily["day"] <= max_day)
-    ]
-    recent_region_summary = (
-        recent_regions.groupby("oblast", as_index=False)["attack_events"]
-        .sum()
-        .sort_values("attack_events", ascending=False)
-    )
-    leading_region = (
-        recent_region_summary.iloc[0]["oblast"]
-        if not recent_region_summary.empty
-        else "—"
-    )
-
-    category_totals = {
-        "БпЛА": float(current_30["uav_events"].sum()),
-        "Ракети": float(current_30["missile_events"].sum()),
-        "Керовані авіабомби": float(current_30["guided_bomb_events"].sum()),
-    }
-    leading_category = max(category_totals, key=category_totals.get)
-
     st.subheader("Що змінило за останні 30 днів")
     s1, s2, s3, s4 = st.columns(4)
-    s1.metric("Записів за 30 днів", fmt_int(current_count))
+    s1.metric("Історичних подій", fmt_int(current_count))
     s2.metric(
         "Зміна до попередніх 30 днів",
         "—" if change_pct is None else fmt_pct_points(change_pct),
     )
-    s3.metric("Найчастіше розмічена область", str(leading_region))
-    s4.metric("Переважна категорія", leading_category)
+    s3.metric(
+        "БпЛА за 30 днів",
+        fmt_int(current_30["uav_events"].sum()) if not current_30.empty else "0",
+    )
+    s4.metric(
+        "Ракет за 30 днів",
+        fmt_int(current_30["missile_events"].sum()) if not current_30.empty else "0",
+    )
 
     st.caption(
-        "Цей блок описує лише історичні зміни у відкритому джерелі "
+        "Показники описують історичні записи у відкритому джерелі "
         "та не є прогнозом майбутніх подій."
     )
 
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric(
-        "Записів атак за період",
-        fmt_int(filtered_national["attack_records"].sum()),
-    )
-    k2.metric(
-        "Повідомлено запущено",
-        fmt_int(filtered_national["launched_reported"].sum()),
-    )
-    k3.metric(
-        "Повідомлено перехоплено",
-        fmt_int(filtered_national["intercepted_reported"].sum()),
-    )
-
-    launched = filtered_national["launched_reported"].sum()
-    intercepted = filtered_national["intercepted_reported"].sum()
-    interception_rate = intercepted / launched if launched else None
-    k4.metric("Частка перехоплень", fmt_pct(interception_rate))
+    if selected_oblast == "Усі області":
+        k1.metric(
+            "Записів атак за період",
+            fmt_int(overview_daily["all_events"].sum()),
+        )
+        k2.metric(
+            "Повідомлено запущено",
+            fmt_int(overview_daily["launched_reported"].sum()),
+        )
+        k3.metric(
+            "Повідомлено перехоплено",
+            fmt_int(overview_daily["intercepted_reported"].sum()),
+        )
+        launched = overview_daily["launched_reported"].sum()
+        intercepted = overview_daily["intercepted_reported"].sum()
+        interception_rate = intercepted / launched if launched else None
+        k4.metric("Частка перехоплень", fmt_pct(interception_rate))
+    else:
+        k1.metric(
+            "Історичних подій за період",
+            fmt_int(overview_daily["all_events"].sum()),
+        )
+        k2.metric(
+            "Днів із подіями",
+            fmt_int(overview_daily["day"].nunique()),
+        )
+        k3.metric(
+            "Подій БпЛА",
+            fmt_int(overview_daily["uav_events"].sum()),
+        )
+        k4.metric(
+            "Ракетних подій",
+            fmt_int(overview_daily["missile_events"].sum()),
+        )
 
     st.subheader("Динаміка історичних записів")
-    timeline = filtered_national.melt(
-        id_vars=["day"],
-        value_vars=[
-            "attack_records",
-            "uav_events",
-            "missile_events",
-            "guided_bomb_events",
-        ],
-        var_name="series",
-        value_name="count",
-    )
-    labels = {
-        "attack_records": "Усі записи",
-        "uav_events": "БпЛА",
-        "missile_events": "Ракети",
-        "guided_bomb_events": "Керовані авіабомби",
-    }
-    timeline["series"] = timeline["series"].map(labels)
-    fig = px.line(
-        timeline,
-        x="day",
-        y="count",
-        color="series",
-        labels={"day": "Дата", "count": "Кількість", "series": "Категорія"},
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.subheader("Структура записів за типом")
-    if not weapon_summary.empty:
-        weapon_chart = px.bar(
-            weapon_summary,
-            x="Категорія",
-            y="attack_records",
-            labels={
-                "Категорія": "Категорія",
-                "attack_records": "Кількість записів",
-            },
+    if overview_daily.empty:
+        st.info("За вибраний період для цієї області немає розмічених записів.")
+    else:
+        timeline = overview_daily.melt(
+            id_vars=["day"],
+            value_vars=[
+                "all_events",
+                "uav_events",
+                "missile_events",
+                "guided_bomb_events",
+            ],
+            var_name="series",
+            value_name="count",
         )
-        st.plotly_chart(weapon_chart, use_container_width=True)
+        labels = {
+            "all_events": "Усі події",
+            "uav_events": "БпЛА",
+            "missile_events": "Ракети",
+            "guided_bomb_events": "Керовані авіабомби",
+        }
+        timeline["series"] = timeline["series"].map(labels)
+        fig = px.line(
+            timeline,
+            x="day",
+            y="count",
+            color="series",
+            labels={"day": "Дата", "count": "Кількість", "series": "Категорія"},
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("Структура подій за типом")
+    structure = pd.DataFrame(
+        {
+            "Категорія": ["БпЛА", "Ракети", "Керовані авіабомби"],
+            "Кількість": [
+                float(overview_daily["uav_events"].sum()) if not overview_daily.empty else 0,
+                float(overview_daily["missile_events"].sum()) if not overview_daily.empty else 0,
+                float(overview_daily["guided_bomb_events"].sum()) if not overview_daily.empty else 0,
+            ],
+        }
+    )
+    structure = structure[structure["Кількість"] > 0].copy()
+
+    if structure.empty:
+        st.info("Для вибраного фільтра немає даних для структури типів.")
+    else:
+        structure["Частка, %"] = (
+            structure["Кількість"] / structure["Кількість"].sum() * 100
+        )
+        structure_chart = px.pie(
+            structure,
+            names="Категорія",
+            values="Кількість",
+            hole=0.45,
+        )
+        structure_chart.update_traces(
+            textposition="inside",
+            textinfo="label+percent",
+            hovertemplate="%{label}: %{value:.0f} подій (%{percent})<extra></extra>",
+        )
+        structure_chart.update_layout(
+            margin=dict(l=10, r=10, t=10, b=10),
+            legend_title_text="Категорія",
+        )
+        st.plotly_chart(structure_chart, use_container_width=True)
+
+        structure_table = structure.copy()
+        structure_table["Частка, %"] = structure_table["Частка, %"].map(fmt_pct_points)
+        st.dataframe(
+            structure_table,
+            use_container_width=True,
+            hide_index=True,
+        )
 
 with regions_tab:
     period_summary = (
