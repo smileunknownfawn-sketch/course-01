@@ -1,0 +1,79 @@
+{
+  "generated_at": "2026-09-23T08:39:31.700076+00:00",
+  "latest_source_event_at": "2026-09-18T18:00:00+00:00",
+  "source_name": "Massive Missile Attacks on Ukraine (Kaggle / piterfm)",
+  "source_scope": "Historical public aggregate data",
+  "attack_rows": 4152,
+  "region_links": 1022,
+  "weapon_rows": 4152,
+  "quality": {
+    "attack_rows": 4152,
+    "region_rows": 1022,
+    "weapon_rows": 4152,
+    "attacks_with_region": 272,
+    "region_coverage_rate": 0.06551059730250482,
+    "recent_attack_rows_90d": 344,
+    "recent_attacks_with_region_90d": 28,
+    "recent_region_coverage_90d": 0.08139534883720931,
+    "latest_attack_date": "2026-09-18T18:00:00+00:00",
+    "latest_region_labeled_date": "2026-09-18T18:00:00+00:00",
+    "region_label_lag_days": 0,
+    "duplicate_attack_ids": 0,
+    "invalid_attack_dates": 0,
+    "missing_attack_types": 0,
+    "orphan_region_links": 0,
+    "negative_weapon_quantities": 0,
+    "intercepted_above_launched": 0,
+    "unmapped_region_rows": 5,
+    "source_duplicate_groups": 0,
+    "blocking_errors": 0,
+    "warnings": 6,
+    "model_ready_for_serving": false,
+    "model_readiness_reasons": [
+      "Overall region-label coverage is only 6.6%",
+      "Recent 90-day region-label coverage is below 25%"
+    ]
+  },
+  "learning": {
+    "data_start": "2025-02-25 00:00:00+00:00",
+    "data_end": "2026-09-17 00:00:00+00:00",
+    "train_rows": 10944,
+    "test_rows": 2736,
+    "candidate_metrics": {
+      "rows": 2736,
+      "positives": 56,
+      "positive_rate": 0.02046783625730994,
+      "brier_score": 0.018535582685625742,
+      "average_precision": 0.19195773368081262,
+      "roc_auc": 0.8666044776119403,
+      "balanced_accuracy": 0.5
+    },
+    "baseline_metrics": {
+      "rows": 2736,
+      "positives": 56,
+      "positive_rate": 0.02046783625730994,
+      "brier_score": 0.023155662479480865,
+      "average_precision": 0.02046783625730994,
+      "roc_auc": 0.5,
+      "balanced_accuracy": 0.5
+    },
+    "beats_baseline": true,
+    "model_ready_for_serving": false,
+    "model_readiness_reasons": [
+      "Overall region-label coverage is only 6.6%",
+      "Recent 90-day region-label coverage is below 25%"
+    ],
+    "champion_metrics_on_same_holdout": {
+      "rows": 2736,
+      "positives": 56,
+      "positive_rate": 0.02046783625730994,
+      "brier_score": 0.01853513285400878,
+      "average_precision": 0.18929029046692328,
+      "roc_auc": 0.8638192963752664,
+      "balanced_accuracy": 0.5
+    },
+    "promoted": false,
+    "decision_reason": "Candidate did not exceed promotion thresholds"
+  },
+  "safety_scope": "Historical aggregated oblast-level analysis only; no live routes, exact targets, launch coordinates, or operational timing."
+}
