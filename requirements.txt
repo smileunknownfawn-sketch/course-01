@@ -4,7 +4,7 @@ scikit-learn
 geopandas
 shapely
 plotly
-streamlit
+streamlit==1.64.0
 sqlalchemy
 psycopg2-binary
 python-dotenv
