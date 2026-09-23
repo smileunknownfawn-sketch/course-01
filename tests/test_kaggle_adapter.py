@@ -77,3 +77,50 @@ def test_transform_accepts_mixed_date_and_datetime_formats():
 
     assert len(tables["attacks"]) == 2
     assert tables["attacks"]["started_at"].isna().sum() == 0
+
+
+def test_stable_ids_use_complete_source_record():
+    source = pd.DataFrame([
+        {
+            "time_start": "2026-01-01 20:00",
+            "time_end": "2026-01-02 08:00",
+            "model": "Shahed-136/131",
+            "launched": 10,
+            "destroyed": 8,
+            "affected region": "['Odesa oblast']",
+            "source": "official/source/1",
+        },
+        {
+            "time_start": "2026-01-01 20:00",
+            "time_end": "2026-01-02 08:00",
+            "model": "Shahed-136/131",
+            "launched": 10,
+            "destroyed": 7,
+            "affected region": "['Odesa oblast']",
+            "source": "official/source/1",
+        },
+    ])
+
+    tables = transform_kaggle_attacks(source)
+
+    assert len(tables["attacks"]) == 2
+    assert tables["attacks"]["attack_id"].nunique() == 2
+
+
+def test_exact_source_duplicates_are_reported_and_collapsed():
+    row = {
+        "time_start": "2026-01-01 20:00",
+        "time_end": "2026-01-02 08:00",
+        "model": "Shahed-136/131",
+        "launched": 10,
+        "destroyed": 8,
+        "affected region": "['Odesa oblast']",
+        "source": "official/source/1",
+    }
+    source = pd.DataFrame([row, row.copy()])
+
+    tables = transform_kaggle_attacks(source)
+
+    assert len(tables["attacks"]) == 1
+    assert len(tables["source_duplicates"]) == 1
+    assert tables["source_duplicates"].iloc[0]["duplicate_count"] == 2
