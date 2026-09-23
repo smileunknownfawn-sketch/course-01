@@ -1,0 +1,2 @@
+generated_at,latest_source_event_at,technical_readiness_score,region_coverage_rate,recent_region_coverage_90d,candidate_average_precision,candidate_brier_score,model_ready_for_serving,warnings
+2026-09-23T10:52:50.227971+00:00,2026-09-18T18:00:00+00:00,59,0.06551059730250482,0.08139534883720931,0.19195773368081262,0.018535582685623116,False,6
