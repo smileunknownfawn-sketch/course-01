@@ -48,9 +48,11 @@ def test_recent_counts_do_not_include_current_or_future_events():
         {"attack_id": 2, "started_at": "2026-01-01T02:00:00Z", "oblast": "Одеська область"},
         {"attack_id": 3, "started_at": "2026-01-01T10:00:00Z", "oblast": "Одеська область"},
     ])
-    result = add_recent_counts(df, windows=(6,))
+    result = add_recent_counts(df, windows=(6, 24))
     row_at_02 = result.loc[result["attack_id"] == 2].iloc[0]
     row_at_10 = result.loc[result["attack_id"] == 3].iloc[0]
 
     assert row_at_02["attacks_last_6h"] == 1
-    assert row_at_10["attacks_last_6h"] == 2
+    assert row_at_10["attacks_last_6h"] == 0
+    assert row_at_10["attacks_last_24h"] == 2
+    assert result[["attacks_last_6h", "attacks_last_24h"]].isna().sum().sum() == 0
