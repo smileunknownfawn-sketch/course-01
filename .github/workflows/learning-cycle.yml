@@ -38,6 +38,9 @@ jobs:
       - name: Build normalized tables
         run: python scripts/build_processed_kaggle.py
 
+      - name: Validate data quality
+        run: python scripts/data_quality_report.py
+
       - name: Run controlled learning cycle
         run: python scripts/self_improve.py
 
@@ -60,5 +63,6 @@ jobs:
             models/*.json
             models/*.joblib
             data/processed/unmapped_regions.csv
+            data/processed/data_quality_report.json
           if-no-files-found: warn
           retention-days: 30
