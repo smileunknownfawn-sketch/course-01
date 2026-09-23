@@ -192,6 +192,7 @@ oblast_summary = parse_dates(
     load_csv("oblast_summary.csv"), ["first_seen", "last_seen"]
 )
 weapon_summary = load_csv("weapon_summary.csv")
+health_history = parse_dates(load_csv("health_history.csv"), ["generated_at"])
 
 if "attack_type" in weapon_summary.columns:
     weapon_summary["Категорія"] = (
@@ -829,6 +830,60 @@ with improve_tab:
         "слабких місць, навчає модель-кандидата, порівнює її з базовою та "
         "чинною моделями й не замінює чинну, якщо кандидат не кращий."
     )
+
+    if not health_history.empty:
+        st.markdown("#### Чи стає система кращою")
+        history = health_history.sort_values("generated_at").copy()
+        history["Покриття областями, %"] = (
+            pd.to_numeric(history["region_coverage_rate"], errors="coerce") * 100
+        )
+        history["Покриття 90 днів, %"] = (
+            pd.to_numeric(
+                history["recent_region_coverage_90d"], errors="coerce"
+            ) * 100
+        )
+        history["Технічна готовність"] = pd.to_numeric(
+            history["technical_readiness_score"], errors="coerce"
+        )
+
+        progress_long = history.melt(
+            id_vars=["generated_at"],
+            value_vars=[
+                "Технічна готовність",
+                "Покриття областями, %",
+                "Покриття 90 днів, %",
+            ],
+            var_name="Показник",
+            value_name="Значення",
+        )
+        progress_fig = px.line(
+            progress_long,
+            x="generated_at",
+            y="Значення",
+            color="Показник",
+            markers=True,
+            labels={
+                "generated_at": "Дата циклу",
+                "Значення": "Значення",
+            },
+        )
+        st.plotly_chart(progress_fig, use_container_width=True)
+
+        if "candidate_average_precision" in history.columns:
+            model_progress = history[
+                ["generated_at", "candidate_average_precision", "candidate_brier_score"]
+            ].copy()
+            model_progress = model_progress.rename(
+                columns={
+                    "candidate_average_precision": "Середня точність",
+                    "candidate_brier_score": "Показник Брієра",
+                }
+            )
+            st.dataframe(
+                model_progress.tail(10),
+                use_container_width=True,
+                hide_index=True,
+            )
 
 st.divider()
 st.caption(
