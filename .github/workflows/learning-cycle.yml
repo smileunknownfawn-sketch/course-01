@@ -71,6 +71,7 @@ jobs:
             models/*.json
             models/*.joblib
             data/processed/unmapped_regions.csv
+            data/processed/source_duplicates.csv
             data/processed/data_quality_report.json
           if-no-files-found: warn
           retention-days: 30
