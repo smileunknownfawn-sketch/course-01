@@ -109,6 +109,10 @@ DECISION_UA = {
         "Показник Брієра покращився без суттєвого погіршення точності ранжування.",
     "Average precision improved without material calibration degradation":
         "Середня точність покращилася без суттєвого погіршення калібрування.",
+    "Training blocked: unverified oblast/day outcomes":
+        "Навчання зупинено: невідомі дні не можна вважати днями без атак.",
+    "Champion trained on or beyond holdout; independent comparison required":
+        "Порівняння заблоковано: чинна модель уже бачила період перевірки.",
 }
 
 st.set_page_config(
@@ -252,6 +256,8 @@ def translate_reason(reason: object) -> str:
             "Покриття регіональними мітками за останні 90 днів "
             f"нижче {value}."
         )
+    if text == "Unverified oblast/day outcomes cannot be used as negative labels":
+        return "Немає підтверджень повноти спостережень для днів без записів про атаку."
     return "Система не розпізнала причину; подробиці є у звіті навчання."
 
 
@@ -438,11 +444,26 @@ scope_viina = period_viina_daily if selected_oblast == "Усі області" o
 scope_sirens = period_siren_daily if selected_oblast == "Усі області" or period_siren_daily.empty else (
     period_siren_daily[period_siren_daily["oblast"] == selected_oblast]
 )
+viina_has_period_coverage = (
+    not viina_daily.empty
+    and start_day <= viina_daily["day"].max()
+    and end_day > viina_daily["day"].min()
+)
 st.subheader(f"{scope_title} · вибраний період")
 status_cols = st.columns(3)
 status_cols[0].metric("Записів атак · Kaggle", fmt_int(overview_daily["all_events"].sum()))
-status_cols[1].metric("Повітряних інцидентів · VIINA", fmt_int(scope_viina["viina_events"].sum()) if not scope_viina.empty else "0")
+status_cols[1].metric(
+    "Повітряних інцидентів · VIINA",
+    fmt_int(scope_viina["viina_events"].sum()) if viina_has_period_coverage else "—",
+)
 status_cols[2].metric("Тривог · окремий контекст", fmt_int(scope_sirens["alert_count"].sum()) if not scope_sirens.empty else "0")
+if not viina_has_period_coverage:
+    st.info("VIINA не містить даних за вибраний період. Прочерк означає відсутність даних, а не відсутність інцидентів.")
+elif not viina_daily.empty and (max_day - viina_daily["day"].max()).days > 30:
+    st.caption(
+        "VIINA охоплює лише частину вибраного періоду; останній запис: "
+        + viina_daily["day"].max().strftime("%d.%m.%Y") + "."
+    )
 if pd.notna(generated_at):
     st.caption("Знімок даних оновлено: " + generated_at.strftime("%d.%m.%Y %H:%M UTC"))
 
@@ -462,9 +483,13 @@ with overview_tab:
 
     source_viina = scope_viina
     st.caption(
-        f"За вибраний період: {fmt_int(source_viina['viina_events'].sum()) if not source_viina.empty else '0'} "
-        "геокодованих повітряних інцидентів VIINA. Цей показник ведеться "
-        "окремо від записів атак Kaggle."
+        (
+            f"За вибраний період у VIINA є {fmt_int(source_viina['viina_events'].sum())} "
+            "геокодованих повітряних інцидентів. "
+            if viina_has_period_coverage else
+            "За вибраний період дані VIINA відсутні. "
+        )
+        + "Це окреме джерело, його події не додаються до записів атак Kaggle."
     )
 
     if selected_oblast == "Усі області":
@@ -1084,10 +1109,17 @@ with quality_tab:
 with ml_tab:
     st.subheader("Стан самонавчання моделі")
     st.caption(
-        "Модель автоматично перенавчається на нових історичних даних і "
-        "замінює чинну модель лише тоді, коли кандидат проходить контроль якості."
+        "Щотижня система перевіряє нові дані. Навчання і заміна моделі "
+        "дозволені лише після підтвердження повноти регіональних спостережень."
     )
-    if not quality.get("model_ready_for_serving", False):
+    if learning.get("status") == "blocked_unverified_outcomes":
+        st.warning(
+            "Навчання призупинено: відсутність запису про атаку не доводить, "
+            "що атаки не було. Для перевірки моделі потрібні підтверджені "
+            "дні спостереження для кожної області."
+        )
+        st.metric("Днів з невідомим результатом", fmt_int(learning.get("unknown_rows")))
+    elif not quality.get("model_ready_for_serving", False):
         st.warning(
             "Автоматичне підвищення моделі заблоковано, доки регіональні "
             "дані не стануть достатньо повними. Навчання й порівняння "
@@ -1127,9 +1159,9 @@ with ml_tab:
     promoted = learning.get("promoted")
     if promoted is True:
         st.success("Нова модель стала чинною моделлю.")
-    elif promoted is False:
+    elif promoted is False and learning.get("status") != "blocked_unverified_outcomes":
         st.info(
-            "Нова модель не замінила чинну: покращення було недостатнім."
+            "Нова модель не замінила чинну; причину наведено нижче."
         )
 
     decision = str(learning.get("decision_reason", "—"))
@@ -1172,9 +1204,9 @@ with ml_tab:
     )
 
     st.markdown(
-        "**Що система робить сама:** завантажує нові історичні дані, "
-        "перевіряє якість, формує ознаки, навчає кандидата, порівнює його "
-        "з базовою та чинною моделями й автоматично підвищує лише кращу модель."
+        "**Що система робить сама:** оновлює історичні дані, перевіряє "
+        "якість і формує ознаки. Навчає й порівнює моделі тільки тоді, "
+        "коли результати спостережень підтверджено."
     )
     st.markdown(
         "**Чого система не робить сама:** не вигадує відсутні факти, "

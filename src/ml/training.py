@@ -58,8 +58,10 @@ def validate_training_dataset(dataset: pd.DataFrame) -> list[str]:
 
     target = dataset[TARGET_COLUMN]
     if target.isna().any():
-        errors.append("Target contains missing values")
+        errors.append("Target contains unverified oblast/day outcomes")
     else:
+        if not target.isin([0, 1]).all():
+            errors.append("Target must contain only verified binary outcomes")
         positive_rate = float(target.mean())
         if not 0.005 <= positive_rate <= 0.8:
             errors.append(
@@ -117,6 +119,8 @@ def train_model(train: pd.DataFrame) -> Pipeline:
 def evaluate_model(model: Pipeline, test: pd.DataFrame) -> ModelMetrics:
     if test.empty:
         raise ValueError("Test dataset is empty")
+    if test[TARGET_COLUMN].isna().any():
+        raise ValueError("Cannot evaluate with unverified oblast/day outcomes")
 
     y_true = test[TARGET_COLUMN].astype("int8")
     probabilities = model.predict_proba(test[FEATURE_COLUMNS])[:, 1]
@@ -149,6 +153,8 @@ def evaluate_prevalence_baseline(
     """Evaluate a constant-probability baseline using training prevalence."""
     if train.empty or test.empty:
         raise ValueError("Train and test datasets must be non-empty")
+    if train[TARGET_COLUMN].isna().any() or test[TARGET_COLUMN].isna().any():
+        raise ValueError("Cannot evaluate with unverified oblast/day outcomes")
 
     y_true = test[TARGET_COLUMN].astype("int8")
     probability = float(train[TARGET_COLUMN].mean())
@@ -177,6 +183,18 @@ def evaluate_prevalence_baseline(
 
 def metrics_to_dict(metrics: ModelMetrics) -> dict[str, object]:
     return asdict(metrics)
+
+
+def champion_holdout_is_clean(
+    champion_metadata: dict[str, object] | None,
+    holdout_start: object,
+) -> bool:
+    """Require recorded champion training to finish before evaluation begins."""
+    cutoff = pd.to_datetime(
+        (champion_metadata or {}).get("data_end"), utc=True, errors="coerce"
+    )
+    start = pd.to_datetime(holdout_start, utc=True, errors="coerce")
+    return bool(pd.notna(cutoff) and pd.notna(start) and cutoff < start)
 
 
 def beats_baseline(

@@ -21,12 +21,15 @@ def build_daily_oblast_dataset(
     attacks: pd.DataFrame,
     attack_regions: pd.DataFrame,
     min_history_days: int = 30,
+    observation_days: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Create one row per oblast/day with a next-day attack label.
+    """Create oblast/day histories without inventing negative attack labels.
 
     The target is intentionally coarse: whether at least one historical attack
     affected an oblast during the following UTC calendar day.
-    Features use only days strictly before the prediction day.
+    Features use only days strictly before the prediction day. A day without
+    a reported attack is unknown unless an audited source certifies complete
+    observation for that oblast/day.
     """
     required_attacks = {"attack_id", "started_at"}
     required_regions = {"attack_id", "oblast"}
@@ -76,7 +79,29 @@ def build_daily_oblast_dataset(
 
     # Prediction target: attack occurrence during this UTC calendar day.
     # Interpret each row as a forecast issued at the start of that day.
-    result["target_next_24h"] = result["attack_count"].gt(0).astype("int8")
+    result["target_next_24h"] = pd.Series(pd.NA, index=result.index, dtype="Int8")
+    result.loc[result["attack_count"] > 0, "target_next_24h"] = 1
+
+    if observation_days is not None and not observation_days.empty:
+        required = {"oblast", "day", "observed_complete", "source_reference"}
+        missing = required.difference(observation_days.columns)
+        if missing:
+            raise ValueError(f"Missing observation columns: {sorted(missing)}")
+        observed = observation_days.copy()
+        observed["day"] = pd.to_datetime(observed["day"], utc=True, errors="coerce")
+        if observed["day"].isna().any() or (observed["day"] != observed["day"].dt.floor("D")).any():
+            raise ValueError("Observation days must have valid UTC calendar dates")
+        if observed.duplicated(["oblast", "day"]).any():
+            raise ValueError("Duplicate oblast/day observations")
+        if not observed["observed_complete"].eq(True).all():
+            raise ValueError("Only explicitly complete observation days can certify negatives")
+        if observed["source_reference"].isna().any() or observed["source_reference"].astype(str).str.strip().eq("").any():
+            raise ValueError("Every complete observation requires a source reference")
+        verified = observed[["oblast", "day"]].assign(verified_complete=True)
+        result = result.merge(verified, on=["oblast", "day"], how="left", validate="one_to_one")
+        certified_negative = result["verified_complete"].eq(True) & result["attack_count"].eq(0)
+        result.loc[certified_negative, "target_next_24h"] = 0
+        result = result.drop(columns=["verified_complete"])
 
     # Historical features; shift(1) prevents using the prediction day's events.
     previous_counts = result.groupby("oblast")["attack_count"].shift(1).fillna(0)

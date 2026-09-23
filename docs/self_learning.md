@@ -7,8 +7,8 @@ The project uses controlled retraining rather than uncontrolled self-modificatio
 1. Download the newest public historical source snapshot.
 2. Normalize source records into stable project tables.
 3. Run data-quality checks.
-4. Build a leakage-safe daily oblast dataset.
-5. Train a new challenger model.
+4. Build daily oblast histories and mark missing outcomes as unknown.
+5. Train a challenger only if every training/evaluation outcome has been verified.
 6. Evaluate the challenger on a chronological holdout (майбутній відрізок даних, який не використовувався для навчання).
 7. Evaluate the current champion on the same holdout.
 8. Promote the challenger only when it exceeds explicit thresholds.
@@ -49,7 +49,10 @@ Warnings remain visible for human review because source semantics may differ.
 The current model is the **champion**.
 A newly trained model is the **challenger**.
 
-The challenger is evaluated against the champion on the same time-based holdout.
+The challenger is evaluated against the champion on the same time-based holdout
+only when the champion's recorded training end precedes the holdout. If the
+champion already saw that period or its training cutoff is unknown, promotion
+is blocked until an independent comparison is possible.
 Promotion requires a meaningful improvement in probability calibration (Brier score) or average precision without material degradation in the other metric.
 Even a better candidate is **not** promoted while the data-quality report marks
 regional coverage as insufficient. Training still runs for diagnostics and
@@ -58,6 +61,30 @@ from silently replacing the current model using poorly labeled data.
 
 If no champion exists, the first candidate becomes the champion only after
 passing both the data-quality gate and the baseline comparison.
+
+## Verified negative outcomes
+
+A missing regional attack record is **unknown**, not proof of a day without an
+attack. Positive labels may come from dated, located attack records. A negative
+label requires an independently audited complete-observation record for that
+oblast and UTC day. The optional processed file
+`data/processed/verified_observation_days.csv` has columns:
+
+| oblast | day | observed_complete | source_reference |
+|---|---|---|---|
+| Назва області | YYYY-MM-DD | True | Посилання на перевірене повне спостереження |
+
+Do not generate this file from Kaggle gaps, VIINA incidents, eTryvoga alerts or
+an absence of media reports; none of them certifies that all attacks on a day
+were observed. The verified observation source must have compatible coverage
+and definitions with the positive attack records. Partial, duplicate,
+unreferenced or invalid observations are rejected. Unverified days stay
+unknown in the dataset; the scheduled workflow publishes a blocked diagnostic
+report and dashboard snapshot without training or promoting a model.
+
+Regional coverage alone does not prove negative outcomes. The current public
+sources do not provide a reliable full observation registry, so model training
+remains on hold. Historical descriptive charts continue to update.
 
 ## Persistence
 
@@ -78,8 +105,8 @@ Pipeline:
 Kaggle snapshot
   -> normalized tables
   -> quality gate
-  -> daily oblast ML dataset
-  -> chronological train/test split
+  -> daily oblast histories and verification gate
+  -> chronological train/test split (when outcomes are verified)
   -> challenger training
   -> champion vs challenger evaluation
   -> conditional promotion
