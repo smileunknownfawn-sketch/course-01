@@ -169,7 +169,14 @@ def selected_map_oblast(event: object) -> str | None:
 
     point = points[0]
     if hasattr(point, "get"):
-        return point.get("location")
+        location = point.get("location")
+        if location:
+            return str(location)
+
+        customdata = point.get("customdata")
+        if isinstance(customdata, (list, tuple)) and customdata:
+            return str(customdata[0])
+
     return None
 
 
