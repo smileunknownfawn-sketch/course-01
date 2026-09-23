@@ -88,7 +88,6 @@ OBLAST_ALIASES.update({
     "crimea": "Автономна Республіка Крим",
     "autonomous republic of crimea": "Автономна Республіка Крим",
     "sevastopol": "Севастополь",
-,
     # Source target labels sometimes use settlement names; collapse only
     # well-known deterministic mappings to the containing oblast.
     "vinnytsia": "Вінницька область",
