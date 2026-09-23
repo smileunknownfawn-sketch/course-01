@@ -25,6 +25,7 @@ def main() -> None:
             DATASET,
             path=filename,
             output_dir=str(RAW_DIR),
+            force_download=True,
         )
         print(f"{filename} -> {path}")
 
