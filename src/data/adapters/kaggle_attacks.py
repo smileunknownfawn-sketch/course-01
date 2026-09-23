@@ -73,6 +73,16 @@ def parse_affected_regions(value: object) -> list[str]:
     return regions
 
 
+def find_unmapped_regions(value: object) -> list[str]:
+    """Return source region tokens that are not in the canonical dictionary."""
+    unmapped: list[str] = []
+    for candidate in _candidate_regions(value):
+        normalized = normalize_oblast(candidate)
+        if normalized not in CANONICAL_REGIONS and candidate not in unmapped:
+            unmapped.append(candidate)
+    return unmapped
+
+
 def _stable_attack_id(row: pd.Series) -> int:
     payload = "|".join(
         [
@@ -116,6 +126,7 @@ def transform_kaggle_attacks(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
         else pd.Series([pd.NA] * len(source), index=source.index)
     )
     source["affected_regions"] = affected_column.map(parse_affected_regions)
+    source["unmapped_regions"] = affected_column.map(find_unmapped_regions)
 
     source["oblast"] = source["affected_regions"].map(
         lambda regions: regions[0] if len(regions) == 1 else pd.NA
@@ -143,6 +154,16 @@ def transform_kaggle_attacks(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
             region_records.append({"attack_id": attack_id, "oblast": region})
     attack_regions = pd.DataFrame(region_records, columns=["attack_id", "oblast"])
 
+    unmapped_records: list[dict[str, object]] = []
+    for attack_id, regions in zip(source["attack_id"], source["unmapped_regions"]):
+        for raw_region in regions:
+            unmapped_records.append(
+                {"attack_id": attack_id, "raw_region": raw_region}
+            )
+    unmapped_regions = pd.DataFrame(
+        unmapped_records, columns=["attack_id", "raw_region"]
+    )
+
     weapons = source[
         ["attack_id", "weapon_category", "model", "quantity", "intercepted_quantity"]
     ].rename(columns={"weapon_category": "category", "model": "type"})
@@ -157,6 +178,7 @@ def transform_kaggle_attacks(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
         "attack_regions": attack_regions,
         "weapons": weapons,
         "provenance": provenance,
+        "unmapped_regions": unmapped_regions,
     }
 
 
