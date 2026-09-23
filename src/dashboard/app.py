@@ -522,9 +522,27 @@ with regions_tab:
                 "active_days": "Днів із подіями",
             }
         )
-        st.dataframe(table.head(15), use_container_width=True, hide_index=True)
+        table_event = st.dataframe(
+            table.head(15),
+            use_container_width=True,
+            hide_index=True,
+            key="oblast_table",
+            on_select="rerun",
+            selection_mode="single-row",
+        )
 
-    detail_oblast = clicked_oblast
+    table_oblast: str | None = None
+    try:
+        selected_rows = table_event.selection.rows
+    except (AttributeError, TypeError):
+        selected_rows = []
+    if selected_rows:
+        row_index = int(selected_rows[0])
+        visible_table = table.head(15).reset_index(drop=True)
+        if 0 <= row_index < len(visible_table):
+            table_oblast = str(visible_table.iloc[row_index]["Область"])
+
+    detail_oblast = clicked_oblast or table_oblast
     if detail_oblast is None and selected_oblast != "Усі області":
         detail_oblast = selected_oblast
 
