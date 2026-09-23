@@ -1,7 +1,7 @@
 import pandas as pd
 
 from src.ml.dataset import build_daily_oblast_dataset, chronological_split
-from src.ml.training import ModelMetrics, should_promote
+from src.ml.training import ModelMetrics, beats_baseline, should_promote
 
 
 def test_daily_dataset_uses_only_prior_days():
@@ -74,3 +74,36 @@ def test_candidate_promotion_requires_meaningful_improvement():
 
     assert should_promote(better, champion)[0] is True
     assert should_promote(worse, champion)[0] is False
+
+
+def test_candidate_must_beat_prevalence_baseline():
+    baseline = ModelMetrics(
+        rows=100,
+        positives=10,
+        positive_rate=0.1,
+        brier_score=0.09,
+        average_precision=0.10,
+        roc_auc=0.5,
+        balanced_accuracy=0.5,
+    )
+    useful = ModelMetrics(
+        rows=100,
+        positives=10,
+        positive_rate=0.1,
+        brier_score=0.08,
+        average_precision=0.15,
+        roc_auc=0.7,
+        balanced_accuracy=0.6,
+    )
+    miscalibrated = ModelMetrics(
+        rows=100,
+        positives=10,
+        positive_rate=0.1,
+        brier_score=0.20,
+        average_precision=0.20,
+        roc_auc=0.8,
+        balanced_accuracy=0.6,
+    )
+
+    assert beats_baseline(useful, baseline)[0] is True
+    assert beats_baseline(miscalibrated, baseline)[0] is False
