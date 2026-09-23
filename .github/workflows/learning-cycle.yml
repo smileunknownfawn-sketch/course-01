@@ -74,15 +74,23 @@ jobs:
       - name: Publish dashboard snapshot
         if: success()
         run: |
+          mkdir -p /tmp/dashboard-snapshot
+          cp data/dashboard/*.csv data/dashboard/*.json /tmp/dashboard-snapshot/
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main
+          git reset --hard origin/main
+
+          mkdir -p data/dashboard
+          cp /tmp/dashboard-snapshot/* data/dashboard/
+
           git add -f data/dashboard/*.csv data/dashboard/*.json
           if git diff --cached --quiet; then
             echo "Dashboard snapshot unchanged"
           else
             git commit -m "Update dashboard snapshot [skip ci]"
-            git fetch origin main
-            git rebase origin/main
             git push origin HEAD:main
           fi
 
