@@ -74,10 +74,9 @@ def build_daily_oblast_dataset(
     result["attack_count"] = result["attack_count"].fillna(0).astype("int64")
     result = result.sort_values(["oblast", "day"]).reset_index(drop=True)
 
-    # Prediction target: attack occurrence on the following day.
-    result["target_next_24h"] = (
-        result.groupby("oblast")["attack_count"].shift(-1).fillna(0).gt(0).astype("int8")
-    )
+    # Prediction target: attack occurrence during this UTC calendar day.
+    # Interpret each row as a forecast issued at the start of that day.
+    result["target_next_24h"] = result["attack_count"].gt(0).astype("int8")
 
     # Historical features; shift(1) prevents using the prediction day's events.
     previous_counts = result.groupby("oblast")["attack_count"].shift(1).fillna(0)
@@ -111,7 +110,7 @@ def build_daily_oblast_dataset(
     result = result[result["history_days"] >= min_history_days].copy()
     result = result.drop(columns=["history_days"])
 
-    # The final day has no complete following-day label in the source range.
+    # The newest source day may still be incomplete, so exclude it from training.
     max_day = result["day"].max()
     result = result[result["day"] < max_day].reset_index(drop=True)
 
