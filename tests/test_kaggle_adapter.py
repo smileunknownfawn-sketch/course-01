@@ -124,3 +124,25 @@ def test_exact_source_duplicates_are_reported_and_collapsed():
     assert len(tables["attacks"]) == 1
     assert len(tables["source_duplicates"]) == 1
     assert tables["source_duplicates"].iloc[0]["duplicate_count"] == 2
+
+
+def test_transform_uses_target_main_for_region_labels():
+    source = pd.DataFrame([
+        {
+            "time_start": "2026-01-01 20:00",
+            "time_end": "2026-01-02 08:00",
+            "model": "Shahed-136/131",
+            "launched": 10,
+            "destroyed": 8,
+            "affected region": "[]",
+            "target_main": "Kyiv oblast and Odesa oblast",
+            "source": "official/source/1",
+        },
+    ])
+
+    tables = transform_kaggle_attacks(source)
+
+    assert set(tables["attack_regions"]["oblast"]) == {
+        "Київська область",
+        "Одеська область",
+    }
