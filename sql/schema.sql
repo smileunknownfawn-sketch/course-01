@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS sources (
 
 CREATE TABLE IF NOT EXISTS geography (
     geo_id BIGSERIAL PRIMARY KEY,
-    oblast TEXT,
+    oblast TEXT NOT NULL,
     raion TEXT,
     settlement TEXT,
     latitude DOUBLE PRECISION,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS attacks (
     started_at TIMESTAMPTZ NOT NULL,
     ended_at TIMESTAMPTZ,
     geo_id BIGINT REFERENCES geography(geo_id),
-    oblast TEXT NOT NULL,
+    oblast TEXT,
     raion TEXT,
     settlement TEXT,
     latitude DOUBLE PRECISION,
