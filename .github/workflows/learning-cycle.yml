@@ -2,6 +2,14 @@ name: weekly-learning-cycle
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/ml/**"
+      - "src/data/**"
+      - "scripts/**"
+      - "requirements.txt"
+      - ".github/workflows/learning-cycle.yml"
   schedule:
     - cron: "0 3 * * 1"
 
