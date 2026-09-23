@@ -10,6 +10,11 @@ import plotly.express as px
 import requests
 import streamlit as st
 
+from src.analysis.improvement import (
+    build_improvement_recommendations,
+    project_readiness_score,
+)
+
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DASHBOARD_DIR = ROOT_DIR / "data" / "dashboard"
 GEOJSON_URL = (
@@ -216,6 +221,20 @@ latest_source = pd.to_datetime(
 
 quality = metadata.get("quality") or {}
 learning = metadata.get("learning") or {}
+improvement_recommendations = metadata.get("improvement_recommendations") or (
+    build_improvement_recommendations(
+        quality,
+        learning,
+        latest_source_event_at=metadata.get("latest_source_event_at"),
+    )
+)
+technical_readiness_score = metadata.get("technical_readiness_score")
+if technical_readiness_score is None:
+    technical_readiness_score = project_readiness_score(
+        quality,
+        learning,
+        latest_source_event_at=metadata.get("latest_source_event_at"),
+    )
 
 status_cols = st.columns([1.3, 1.3, 1.3, 2.2])
 status_cols[0].metric("Записів атак", fmt_int(metadata.get("attack_rows")))
@@ -277,11 +296,75 @@ period_oblast_daily = oblast_daily[
     & (oblast_daily["day"] < end_day)
 ].copy()
 
-overview_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.tabs(
-    ["Огляд", "Області", "Відсотки та оцінка", "Якість даних", "Модель"]
+overview_tab, regions_tab, risk_tab, quality_tab, ml_tab, improve_tab = st.tabs(
+    [
+        "Огляд",
+        "Області",
+        "Відсотки та оцінка",
+        "Якість даних",
+        "Модель",
+        "Що покращити",
+    ]
 )
 
 with overview_tab:
+    last_30_start = max_day - pd.Timedelta(days=29)
+    previous_30_start = last_30_start - pd.Timedelta(days=30)
+
+    current_30 = national_daily[
+        (national_daily["day"] >= last_30_start)
+        & (national_daily["day"] <= max_day)
+    ]
+    previous_30 = national_daily[
+        (national_daily["day"] >= previous_30_start)
+        & (national_daily["day"] < last_30_start)
+    ]
+
+    current_count = float(current_30["attack_records"].sum())
+    previous_count = float(previous_30["attack_records"].sum())
+    change_pct = (
+        (current_count - previous_count) / previous_count * 100
+        if previous_count
+        else None
+    )
+
+    recent_regions = oblast_daily[
+        (oblast_daily["day"] >= last_30_start)
+        & (oblast_daily["day"] <= max_day)
+    ]
+    recent_region_summary = (
+        recent_regions.groupby("oblast", as_index=False)["attack_events"]
+        .sum()
+        .sort_values("attack_events", ascending=False)
+    )
+    leading_region = (
+        recent_region_summary.iloc[0]["oblast"]
+        if not recent_region_summary.empty
+        else "—"
+    )
+
+    category_totals = {
+        "БпЛА": float(current_30["uav_events"].sum()),
+        "Ракети": float(current_30["missile_events"].sum()),
+        "Керовані авіабомби": float(current_30["guided_bomb_events"].sum()),
+    }
+    leading_category = max(category_totals, key=category_totals.get)
+
+    st.subheader("Що змінило за останні 30 днів")
+    s1, s2, s3, s4 = st.columns(4)
+    s1.metric("Записів за 30 днів", fmt_int(current_count))
+    s2.metric(
+        "Зміна до попередніх 30 днів",
+        "—" if change_pct is None else fmt_pct_points(change_pct),
+    )
+    s3.metric("Найчастіше розмічена область", str(leading_region))
+    s4.metric("Переважна категорія", leading_category)
+
+    st.caption(
+        "Цей блок описує лише історичні зміни у відкритому джерелі "
+        "та не є прогнозом майбутніх подій."
+    )
+
     k1, k2, k3, k4 = st.columns(4)
     k1.metric(
         "Записів атак за період",
@@ -673,6 +756,60 @@ with ml_tab:
         "**Чого система не робить сама:** не вигадує відсутні факти, "
         "не переписує сирі дані без правил і не перетворює неповні дані "
         "на точний прогноз."
+    )
+
+with improve_tab:
+    st.subheader("Що система рекомендує покращити")
+    st.caption(
+        "Це автоматичний аудит самого проєкту. Він аналізує якість даних, "
+        "свіжість джерела та результати моделі, але не змінює сирі факти самостійно."
+    )
+
+    r1, r2, r3 = st.columns(3)
+    r1.metric("Технічна готовність", f"{int(technical_readiness_score)} / 100")
+    r2.metric(
+        "Високих пріоритетів",
+        fmt_int(
+            sum(
+                1
+                for item in improvement_recommendations
+                if item.get("level") in {"Критично", "Високий"}
+            )
+        ),
+    )
+    r3.metric(
+        "Автоматизованих дій",
+        fmt_int(
+            sum(
+                1
+                for item in improvement_recommendations
+                if item.get("automatic") is True
+            )
+        ),
+    )
+    st.progress(min(1.0, max(0.0, float(technical_readiness_score) / 100.0)))
+
+    st.markdown("#### Пріоритетний план")
+    for index, item in enumerate(improvement_recommendations, start=1):
+        level = item.get("level", "—")
+        title = item.get("title", "Рекомендація")
+        area = item.get("area", "Система")
+        automatic = (
+            "може контролювати автоматично"
+            if item.get("automatic")
+            else "потребує розвитку або нового джерела"
+        )
+        with st.expander(f"{index}. [{level}] {title}", expanded=index <= 3):
+            st.write(f"**Напрям:** {area}")
+            st.write(f"**Що виявлено:** {item.get('finding', '—')}")
+            st.write(f"**Що робити:** {item.get('action', '—')}")
+            st.caption(f"Статус дії: {automatic}.")
+
+    st.markdown("#### Як проєкт сам себе покращує")
+    st.write(
+        "Після кожного циклу система перевіряє якість даних, формує список "
+        "слабких місць, навчає модель-кандидата, порівнює її з базовою та "
+        "чинною моделями й не замінює чинну, якщо кандидат не кращий."
     )
 
 st.divider()
