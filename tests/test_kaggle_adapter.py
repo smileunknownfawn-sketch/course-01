@@ -49,3 +49,31 @@ def test_transform_keeps_attack_counts_separate_from_regions():
         tables["attacks"]["attack_type"] == "missile"
     ].iloc[0]
     assert single_region_attack["oblast"] == "Харківська область"
+
+
+def test_transform_accepts_mixed_date_and_datetime_formats():
+    source = pd.DataFrame([
+        {
+            "time_start": "2026-01-01 20:00",
+            "time_end": "2026-01-02 08:00",
+            "model": "Shahed-136/131",
+            "launched": 2,
+            "destroyed": 1,
+            "affected region": "['Odesa oblast']",
+            "source": "official/source/1",
+        },
+        {
+            "time_start": "2026-01-03",
+            "time_end": "2026-01-03",
+            "model": "Unknown UAV",
+            "launched": 1,
+            "destroyed": 1,
+            "affected region": "['Odesa oblast']",
+            "source": "official/source/2",
+        },
+    ])
+
+    tables = transform_kaggle_attacks(source)
+
+    assert len(tables["attacks"]) == 2
+    assert tables["attacks"]["started_at"].isna().sum() == 0
