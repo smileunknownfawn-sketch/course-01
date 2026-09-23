@@ -64,6 +64,33 @@ Generated files:
 
 Raw and processed datasets are ignored by Git and remain local.
 
+
+## Controlled self-learning
+
+The project now supports a champion/challenger learning cycle (чинна модель / нова модель-кандидат):
+
+```text
+fresh historical data
+  -> quality checks
+  -> leakage-safe features
+  -> train challenger
+  -> compare with champion on the same future holdout
+  -> promote only if metrics improve
+```
+
+Run locally:
+
+```bash
+python scripts/download_kaggle.py
+python scripts/build_processed_kaggle.py
+python scripts/data_quality_report.py
+python scripts/self_improve.py
+```
+
+The scheduled GitHub Actions workflow repeats this cycle weekly and preserves the current champion between runs. Raw facts are never rewritten automatically; suspicious or unmapped values are reported for review.
+
+See `docs/self_learning.md` for the full lifecycle.
+
 ## Tests
 
 ```bash
