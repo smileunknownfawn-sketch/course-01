@@ -28,7 +28,7 @@ def test_transform_keeps_attack_counts_separate_from_regions():
             "model": "Iskander-M",
             "launched": 3,
             "destroyed": 1,
-            "affected region": "['Kharkiv oblast']",
+            "affected region": "['Kharkiv oblast', 'south']",
             "source": "official/source/2",
         },
     ])
@@ -38,6 +38,7 @@ def test_transform_keeps_attack_counts_separate_from_regions():
     assert len(tables["attacks"]) == 2
     assert len(tables["attack_regions"]) == 3
     assert tables["weapons"]["quantity"].sum() == 13
+    assert tables["unmapped_regions"]["raw_region"].tolist() == ["south"]
 
     multi_region_attack = tables["attacks"].loc[
         tables["attacks"]["attack_type"] == "uav"
