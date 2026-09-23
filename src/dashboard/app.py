@@ -17,8 +17,65 @@ GEOJSON_URL = (
     "main/geodata/Ukraine.geojson"
 )
 
+ATTACK_TYPE_UA = {
+    "uav": "БпЛА",
+    "missile": "Ракети",
+    "guided_bomb": "Керовані авіабомби",
+    "combined": "Комбіновані",
+    "unknown": "Невідомо",
+}
+
+QUALITY_LABELS_UA = {
+    "attack_rows": "Записів атак",
+    "region_rows": "Зв'язків з областями",
+    "weapon_rows": "Записів про засоби ураження",
+    "attacks_with_region": "Атак із визначеною областю",
+    "region_coverage_rate": "Покриття областями",
+    "recent_attack_rows_90d": "Записів атак за останні 90 днів",
+    "recent_attacks_with_region_90d": "Атак з областю за останні 90 днів",
+    "recent_region_coverage_90d": "Покриття областями за 90 днів",
+    "latest_attack_date": "Остання дата атаки у джерелі",
+    "latest_region_labeled_date": "Остання дата з регіональною міткою",
+    "region_label_lag_days": "Відставання регіональної розмітки, днів",
+    "duplicate_attack_ids": "Дублікати ID атак",
+    "invalid_attack_dates": "Некоректні дати",
+    "missing_attack_types": "Записи без типу атаки",
+    "orphan_region_links": "Некоректні зв'язки з областями",
+    "negative_weapon_quantities": "Від'ємні значення кількості",
+    "intercepted_above_launched": "Перехоплено більше, ніж запущено",
+    "unmapped_region_rows": "Нерозпізнані регіональні значення",
+    "source_duplicate_groups": "Групи дублікатів у джерелі",
+    "blocking_errors": "Критичні помилки",
+    "warnings": "Попередження",
+    "model_ready_for_serving": "Модель готова до використання",
+}
+
+READINESS_REASON_UA = {
+    "Overall region-label coverage is only 6.6%":
+        "Загальне покриття подій регіональними мітками становить лише 6,6%.",
+    "Recent 90-day region-label coverage is below 25%":
+        "Покриття регіональними мітками за останні 90 днів нижче 25%.",
+}
+
+DECISION_UA = {
+    "Candidate did not exceed promotion thresholds":
+        "Нова модель не перевищила пороги, необхідні для заміни чинної.",
+    "Candidate exceeds prevalence baseline":
+        "Нова модель перевершує просту базову модель.",
+    "Candidate probability calibration is worse than baseline":
+        "Калібрування ймовірностей нової моделі гірше за базову.",
+    "Candidate ranking quality does not exceed baseline":
+        "Якість ранжування нової моделі не перевищує базову.",
+    "No champion exists yet":
+        "Чинної моделі ще немає.",
+    "Brier score improved without material AP degradation":
+        "Показник Брієра покращився без суттєвого погіршення точності ранжування.",
+    "Average precision improved without material calibration degradation":
+        "Середня точність покращилася без суттєвого погіршення калібрування.",
+}
+
 st.set_page_config(
-    page_title="Ukraine Historical Attack Analytics",
+    page_title="Історична аналітика атак по Україні",
     page_icon="📊",
     layout="wide",
 )
@@ -59,7 +116,14 @@ def fmt_int(value: object) -> str:
 
 def fmt_pct(value: object) -> str:
     try:
-        return f"{float(value):.1%}"
+        return f"{float(value):.1%}".replace(".", ",")
+    except (TypeError, ValueError):
+        return "—"
+
+
+def fmt_pct_points(value: object) -> str:
+    try:
+        return f"{float(value):.1f}%".replace(".", ",")
     except (TypeError, ValueError):
         return "—"
 
@@ -74,6 +138,41 @@ def parse_dates(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return result
 
 
+def translate_reason(reason: object) -> str:
+    text = str(reason)
+    if text in READINESS_REASON_UA:
+        return READINESS_REASON_UA[text]
+    if "Overall region-label coverage is only" in text:
+        value = text.split("only", 1)[-1].strip()
+        return f"Загальне покриття подій регіональними мітками становить лише {value}."
+    if "Recent 90-day region-label coverage is below" in text:
+        value = text.split("below", 1)[-1].strip()
+        return (
+            "Покриття регіональними мітками за останні 90 днів "
+            f"нижче {value}."
+        )
+    return text
+
+
+def selected_map_oblast(event: object) -> str | None:
+    """Extract clicked choropleth location from Streamlit Plotly selection."""
+    try:
+        points = event.selection.points
+    except (AttributeError, TypeError):
+        try:
+            points = event.get("selection", {}).get("points", [])
+        except AttributeError:
+            points = []
+
+    if not points:
+        return None
+
+    point = points[0]
+    if hasattr(point, "get"):
+        return point.get("location")
+    return None
+
+
 metadata = load_metadata()
 national_daily = parse_dates(load_csv("national_daily.csv"), ["day"])
 oblast_daily = parse_dates(load_csv("oblast_daily.csv"), ["day"])
@@ -82,15 +181,23 @@ oblast_summary = parse_dates(
 )
 weapon_summary = load_csv("weapon_summary.csv")
 
+if "attack_type" in weapon_summary.columns:
+    weapon_summary["Категорія"] = (
+        weapon_summary["attack_type"].map(ATTACK_TYPE_UA).fillna(
+            weapon_summary["attack_type"]
+        )
+    )
+
 st.title("Історична аналітика атак по Україні")
 st.caption(
-    "Агрегований навчальний проєкт: історичні відкриті дані по областях. "
-    "Не показує live-маршрути, точні цілі, координати запусків або оперативний час."
+    "Агрегований навчальний проєкт на основі відкритих історичних даних. "
+    "Не показує оперативні маршрути, точні цілі, координати запусків "
+    "або точний час майбутніх ударів."
 )
 
 if not metadata or national_daily.empty:
     st.error(
-        "Dashboard snapshot ще не створений. Запусти "
+        "Знімок даних для панелі ще не створений. Потрібно виконати "
         "python scripts/build_dashboard_data.py після підготовки даних."
     )
     st.stop()
@@ -117,7 +224,7 @@ status_cols[3].metric(
 
 if pd.notna(generated_at):
     st.caption(
-        "Знімок dashboard оновлено: "
+        "Дані панелі оновлено: "
         + generated_at.strftime("%d.%m.%Y %H:%M UTC")
     )
 
@@ -139,10 +246,11 @@ with st.sidebar:
     selected_oblast = st.selectbox("Область", oblast_options)
 
     st.divider()
-    st.caption("Джерело")
-    st.write(metadata.get("source_name", "—"))
+    st.caption("Джерело даних")
+    st.write("Kaggle — відкритий історичний набір piterfm")
     st.caption(
-        "Дані є історичними та можуть мати неповну регіональну розмітку."
+        "Регіональна розмітка джерела неповна, тому відсутність запису "
+        "не означає відсутність події."
     )
 
 if isinstance(date_range, tuple) and len(date_range) == 2:
@@ -157,18 +265,13 @@ filtered_national = national_daily[
     & (national_daily["day"] < end_day)
 ].copy()
 
-filtered_oblast_daily = oblast_daily[
+period_oblast_daily = oblast_daily[
     (oblast_daily["day"] >= start_day)
     & (oblast_daily["day"] < end_day)
 ].copy()
 
-if selected_oblast != "Усі області":
-    filtered_oblast_daily = filtered_oblast_daily[
-        filtered_oblast_daily["oblast"] == selected_oblast
-    ]
-
-overview_tab, regions_tab, quality_tab, ml_tab = st.tabs(
-    ["Огляд", "Області", "Якість даних", "ML"]
+overview_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.tabs(
+    ["Огляд", "Області", "Відсотки та оцінка", "Якість даних", "Модель"]
 )
 
 with overview_tab:
@@ -189,12 +292,17 @@ with overview_tab:
     launched = filtered_national["launched_reported"].sum()
     intercepted = filtered_national["intercepted_reported"].sum()
     interception_rate = intercepted / launched if launched else None
-    k4.metric("Співвідношення перехоплень", fmt_pct(interception_rate))
+    k4.metric("Частка перехоплень", fmt_pct(interception_rate))
 
     st.subheader("Динаміка історичних записів")
     timeline = filtered_national.melt(
         id_vars=["day"],
-        value_vars=["attack_records", "uav_events", "missile_events", "guided_bomb_events"],
+        value_vars=[
+            "attack_records",
+            "uav_events",
+            "missile_events",
+            "guided_bomb_events",
+        ],
         var_name="series",
         value_name="count",
     )
@@ -218,10 +326,10 @@ with overview_tab:
     if not weapon_summary.empty:
         weapon_chart = px.bar(
             weapon_summary,
-            x="attack_type",
+            x="Категорія",
             y="attack_records",
             labels={
-                "attack_type": "Категорія",
+                "Категорія": "Категорія",
                 "attack_records": "Кількість записів",
             },
         )
@@ -229,7 +337,7 @@ with overview_tab:
 
 with regions_tab:
     period_summary = (
-        filtered_oblast_daily.groupby("oblast", as_index=False)
+        period_oblast_daily.groupby("oblast", as_index=False)
         .agg(
             attack_events=("attack_events", "sum"),
             active_days=("day", "nunique"),
@@ -240,10 +348,21 @@ with regions_tab:
         .sort_values("attack_events", ascending=False)
     )
 
+    total_regional_events = float(period_summary["attack_events"].sum())
+    period_summary["historical_share_pct"] = (
+        period_summary["attack_events"] / total_regional_events * 100
+        if total_regional_events
+        else 0.0
+    )
+
     left, right = st.columns([1.45, 1.0])
+    clicked_oblast: str | None = None
 
     with left:
-        st.subheader("Карта історичних подій")
+        st.subheader("Інтерактивна карта областей")
+        st.caption(
+            "Натисни на область — нижче відкриється її статистика за вибраний період."
+        )
         geojson = load_geojson()
         if geojson and not period_summary.empty:
             map_fig = px.choropleth(
@@ -251,93 +370,223 @@ with regions_tab:
                 geojson=geojson,
                 locations="oblast",
                 featureidkey="properties.name",
-                color="attack_events",
+                color="historical_share_pct",
+                custom_data=["oblast"],
                 hover_name="oblast",
                 hover_data={
+                    "historical_share_pct": ":.1f",
                     "attack_events": True,
                     "active_days": True,
                     "uav_events": True,
                     "missile_events": True,
                     "guided_bomb_events": True,
                 },
-                labels={"attack_events": "Подій"},
+                labels={
+                    "historical_share_pct": "Історична частка, %",
+                    "attack_events": "Подій",
+                    "active_days": "Активних днів",
+                    "uav_events": "БпЛА",
+                    "missile_events": "Ракети",
+                    "guided_bomb_events": "Керовані авіабомби",
+                },
             )
-            map_fig.update_geos(
-                fitbounds="locations",
-                visible=False,
-            )
+            map_fig.update_geos(fitbounds="locations", visible=False)
             map_fig.update_layout(
                 margin=dict(l=0, r=0, t=20, b=0),
-                coloraxis_colorbar_title="Подій",
+                coloraxis_colorbar_title="Частка, %",
+                clickmode="event+select",
             )
-            st.plotly_chart(map_fig, use_container_width=True)
+            map_event = st.plotly_chart(
+                map_fig,
+                use_container_width=True,
+                key="oblast_map",
+                on_select="rerun",
+                selection_mode="points",
+            )
+            clicked_oblast = selected_map_oblast(map_event)
         else:
-            st.info("GeoJSON недоступний — показую рейтинг областей.")
+            st.info("Карта тимчасово недоступна — показую рейтинг областей.")
             if not period_summary.empty:
-                st.bar_chart(period_summary.set_index("oblast")["attack_events"])
+                st.bar_chart(
+                    period_summary.set_index("oblast")["historical_share_pct"]
+                )
 
     with right:
-        st.subheader("Області")
-        st.dataframe(
-            period_summary.head(15),
-            use_container_width=True,
-            hide_index=True,
+        st.subheader("Рейтинг областей")
+        table = period_summary[
+            [
+                "oblast",
+                "attack_events",
+                "historical_share_pct",
+                "active_days",
+            ]
+        ].copy()
+        table["historical_share_pct"] = table["historical_share_pct"].map(
+            fmt_pct_points
         )
+        table = table.rename(
+            columns={
+                "oblast": "Область",
+                "attack_events": "Історичних подій",
+                "historical_share_pct": "Частка, %",
+                "active_days": "Днів із подіями",
+            }
+        )
+        st.dataframe(table.head(15), use_container_width=True, hide_index=True)
 
-    if selected_oblast != "Усі області" and not filtered_oblast_daily.empty:
-        st.subheader(selected_oblast)
-        region_fig = px.bar(
-            filtered_oblast_daily,
-            x="day",
-            y=["uav_events", "missile_events", "guided_bomb_events"],
-            labels={"value": "Кількість подій", "day": "Дата", "variable": "Тип"},
+    detail_oblast = clicked_oblast
+    if detail_oblast is None and selected_oblast != "Усі області":
+        detail_oblast = selected_oblast
+
+    if detail_oblast:
+        detail = period_oblast_daily[
+            period_oblast_daily["oblast"] == detail_oblast
+        ].copy()
+        row = period_summary[period_summary["oblast"] == detail_oblast]
+
+        st.divider()
+        st.subheader(f"{detail_oblast}: історична статистика")
+
+        if not row.empty:
+            row = row.iloc[0]
+            d1, d2, d3, d4 = st.columns(4)
+            d1.metric("Історичних подій", fmt_int(row["attack_events"]))
+            d2.metric(
+                "Частка серед розмічених подій",
+                fmt_pct_points(row["historical_share_pct"]),
+            )
+            d3.metric("Днів із подіями", fmt_int(row["active_days"]))
+            d4.metric(
+                "БпЛА / ракети",
+                f"{fmt_int(row['uav_events'])} / {fmt_int(row['missile_events'])}",
+            )
+
+        if not detail.empty:
+            region_fig = px.bar(
+                detail,
+                x="day",
+                y=["uav_events", "missile_events", "guided_bomb_events"],
+                labels={
+                    "value": "Кількість історичних подій",
+                    "day": "Дата",
+                    "variable": "Категорія",
+                },
+            )
+            region_fig.for_each_trace(
+                lambda trace: trace.update(
+                    name={
+                        "uav_events": "БпЛА",
+                        "missile_events": "Ракети",
+                        "guided_bomb_events": "Керовані авіабомби",
+                    }.get(trace.name, trace.name)
+                )
+            )
+            st.plotly_chart(region_fig, use_container_width=True)
+
+with risk_tab:
+    st.subheader("Відсотковий розподіл за областями")
+    st.caption(
+        "Це історична частка розмічених подій у вибраному періоді, "
+        "а не твердження про те, де відбудеться наступний удар."
+    )
+
+    risk_summary = (
+        period_oblast_daily.groupby("oblast", as_index=False)["attack_events"]
+        .sum()
+        .sort_values("attack_events", ascending=False)
+    )
+    total = float(risk_summary["attack_events"].sum())
+    risk_summary["share_pct"] = (
+        risk_summary["attack_events"] / total * 100 if total else 0.0
+    )
+
+    if not risk_summary.empty:
+        risk_chart = px.bar(
+            risk_summary.head(15),
+            x="share_pct",
+            y="oblast",
+            orientation="h",
+            labels={
+                "share_pct": "Історична частка, %",
+                "oblast": "Область",
+            },
         )
-        st.plotly_chart(region_fig, use_container_width=True)
+        risk_chart.update_layout(yaxis={"categoryorder": "total ascending"})
+        st.plotly_chart(risk_chart, use_container_width=True)
+
+    if learning.get("model_ready_for_serving"):
+        st.success(
+            "Модель пройшла поточні пороги якості даних. "
+            "Агреговану модельну оцінку для області/доби можна публікувати "
+            "окремо від історичної частки."
+        )
+    else:
+        st.warning(
+            "Модель поки не показує майбутні відсотки як надійний прогноз: "
+            "регіональна розмітка даних недостатньо повна. "
+            "Показувати точні відсотки зараз означало б створити хибну точність."
+        )
+        for reason in learning.get("model_readiness_reasons") or []:
+            st.write(f"• {translate_reason(reason)}")
+
+    st.info(
+        "Рівень міста не використовується для прогнозування майбутнього удару. "
+        "Проєкт працює з агрегованою аналітикою на рівні області та широких "
+        "часових вікон."
+    )
 
 with quality_tab:
     st.subheader("Контроль якості даних")
 
     q1, q2, q3, q4 = st.columns(4)
-    q1.metric("Blocking errors", fmt_int(quality.get("blocking_errors")))
+    q1.metric("Критичні помилки", fmt_int(quality.get("blocking_errors")))
     q2.metric("Попередження", fmt_int(quality.get("warnings")))
     q3.metric(
-        "Покриття областями (все)",
+        "Покриття областями — загалом",
         fmt_pct(quality.get("region_coverage_rate")),
     )
     q4.metric(
-        "Покриття областями (90 днів)",
+        "Покриття областями — 90 днів",
         fmt_pct(quality.get("recent_region_coverage_90d")),
     )
 
     ready = bool(quality.get("model_ready_for_serving", False))
     if ready:
-        st.success("Регіональні дані відповідають поточним порогам готовності.")
+        st.success("Дані відповідають поточним порогам готовності моделі.")
     else:
         st.warning(
-            "Регіональні дані поки недостатньо повні для використання "
-            "ML як актуального сервісного прогнозу."
+            "Регіональні дані поки недостатньо повні для публікації "
+            "модельного прогнозу як надійного."
         )
 
     reasons = quality.get("model_readiness_reasons") or []
     if reasons:
         st.write("Причини:")
         for reason in reasons:
-            st.write(f"- {reason}")
+            st.write(f"• {translate_reason(reason)}")
 
-    quality_table = pd.DataFrame(
-        [
-            {"Показник": key, "Значення": value}
-            for key, value in quality.items()
-            if key not in {"model_readiness_reasons"}
-        ]
+    quality_rows = []
+    for key, value in quality.items():
+        if key == "model_readiness_reasons":
+            continue
+        label = QUALITY_LABELS_UA.get(key, key)
+        if key in {"region_coverage_rate", "recent_region_coverage_90d"}:
+            value = fmt_pct(value)
+        elif key == "model_ready_for_serving":
+            value = "Так" if value else "Ні"
+        quality_rows.append({"Показник": label, "Значення": value})
+
+    st.dataframe(
+        pd.DataFrame(quality_rows),
+        use_container_width=True,
+        hide_index=True,
     )
-    st.dataframe(quality_table, use_container_width=True, hide_index=True)
 
 with ml_tab:
-    st.subheader("Стан навчання моделі")
+    st.subheader("Стан самонавчання моделі")
     st.caption(
-        "ML працює лише як агрегований історичний експеримент по області/добі. "
-        "Точні цілі, маршрути й оперативні прогнози не моделюються."
+        "Модель автоматично перенавчається на нових історичних даних і "
+        "замінює чинну модель лише тоді, коли кандидат проходить контроль якості."
     )
 
     candidate = learning.get("candidate_metrics") or {}
@@ -346,54 +595,59 @@ with ml_tab:
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric(
-        "Candidate ROC AUC",
-        f"{candidate.get('roc_auc'):.3f}" if candidate.get("roc_auc") is not None else "—",
+        "ROC AUC кандидата",
+        f"{candidate.get('roc_auc'):.3f}".replace(".", ",")
+        if candidate.get("roc_auc") is not None
+        else "—",
     )
     m2.metric(
-        "Candidate AP",
-        f"{candidate.get('average_precision'):.3f}"
+        "Середня точність кандидата",
+        f"{candidate.get('average_precision'):.3f}".replace(".", ",")
         if candidate.get("average_precision") is not None
         else "—",
     )
     m3.metric(
-        "Candidate Brier",
-        f"{candidate.get('brier_score'):.3f}"
+        "Показник Брієра кандидата",
+        f"{candidate.get('brier_score'):.3f}".replace(".", ",")
         if candidate.get("brier_score") is not None
         else "—",
     )
     m4.metric(
-        "Baseline Brier",
-        f"{baseline.get('brier_score'):.3f}"
+        "Показник Брієра базової моделі",
+        f"{baseline.get('brier_score'):.3f}".replace(".", ",")
         if baseline.get("brier_score") is not None
         else "—",
     )
 
     promoted = learning.get("promoted")
     if promoted is True:
-        st.success("Нова модель пройшла promotion (підвищення до champion).")
+        st.success("Нова модель стала чинною моделлю.")
     elif promoted is False:
-        st.info("Нова модель не замінила champion — поріг покращення не пройдений.")
+        st.info(
+            "Нова модель не замінила чинну: покращення було недостатнім."
+        )
 
-    st.write("Рішення:", learning.get("decision_reason", "—"))
+    decision = str(learning.get("decision_reason", "—"))
+    st.write("Рішення системи:", DECISION_UA.get(decision, decision))
     st.write(
-        "Готовність до показу як сервісного прогнозу:",
+        "Готовність до публікації модельної оцінки:",
         "так" if learning.get("model_ready_for_serving") else "ні",
     )
 
     comparison_rows = []
     for name, metrics in (
-        ("Candidate", candidate),
-        ("Baseline", baseline),
-        ("Champion", champion),
+        ("Кандидат", candidate),
+        ("Базова модель", baseline),
+        ("Чинна модель", champion),
     ):
         if metrics:
             comparison_rows.append(
                 {
                     "Модель": name,
                     "ROC AUC": metrics.get("roc_auc"),
-                    "Average Precision": metrics.get("average_precision"),
-                    "Brier": metrics.get("brier_score"),
-                    "Balanced Accuracy": metrics.get("balanced_accuracy"),
+                    "Середня точність": metrics.get("average_precision"),
+                    "Показник Брієра": metrics.get("brier_score"),
+                    "Збалансована точність": metrics.get("balanced_accuracy"),
                 }
             )
     if comparison_rows:
@@ -403,8 +657,19 @@ with ml_tab:
             hide_index=True,
         )
 
+    st.markdown(
+        "**Що система робить сама:** завантажує нові історичні дані, "
+        "перевіряє якість, формує ознаки, навчає кандидата, порівнює його "
+        "з базовою та чинною моделями й автоматично підвищує лише кращу модель."
+    )
+    st.markdown(
+        "**Чого система не робить сама:** не вигадує відсутні факти, "
+        "не переписує сирі дані без правил і не перетворює неповні дані "
+        "на точний прогноз."
+    )
+
 st.divider()
 st.caption(
-    "Навчальний Data Science проєкт. Показники залежать від повноти відкритих джерел; "
-    "відсутність запису не означає відсутність події."
+    "Навчальний Data Science проєкт. Показники залежать від повноти "
+    "відкритих джерел; відсутність запису не означає відсутність події."
 )
