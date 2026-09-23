@@ -83,6 +83,24 @@ def find_unmapped_regions(value: object) -> list[str]:
     return unmapped
 
 
+def _combine_recognized_regions(*values: object) -> list[str]:
+    regions: list[str] = []
+    for value in values:
+        for region in parse_affected_regions(value):
+            if region not in regions:
+                regions.append(region)
+    return regions
+
+
+def _combine_unmapped_regions(*values: object) -> list[str]:
+    unmapped: list[str] = []
+    for value in values:
+        for candidate in find_unmapped_regions(value):
+            if candidate not in unmapped:
+                unmapped.append(candidate)
+    return unmapped
+
+
 def _source_record_hash(row: pd.Series, raw_columns: list[str]) -> str:
     """Hash the complete normalized source row for stable provenance."""
     parts: list[str] = []
@@ -144,8 +162,22 @@ def transform_kaggle_attacks(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
         if "affected_region" in source.columns
         else pd.Series([pd.NA] * len(source), index=source.index)
     )
-    source["affected_regions"] = affected_column.map(parse_affected_regions)
-    source["unmapped_regions"] = affected_column.map(find_unmapped_regions)
+    target_main_column = (
+        source["target_main"]
+        if "target_main" in source.columns
+        else pd.Series([pd.NA] * len(source), index=source.index)
+    )
+
+    # Region labels may be reported in either field depending on source period.
+    # Only canonical oblast/city-region names are retained.
+    source["affected_regions"] = [
+        _combine_recognized_regions(affected, target_main)
+        for affected, target_main in zip(affected_column, target_main_column)
+    ]
+    source["unmapped_regions"] = [
+        _combine_unmapped_regions(affected, target_main)
+        for affected, target_main in zip(affected_column, target_main_column)
+    ]
 
     source["oblast"] = source["affected_regions"].map(
         lambda regions: regions[0] if len(regions) == 1 else pd.NA
