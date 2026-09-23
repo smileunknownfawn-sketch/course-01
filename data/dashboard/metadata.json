@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-23T11:12:02.809001+00:00",
+  "generated_at": "2026-09-23T11:13:13.620920+00:00",
   "latest_source_event_at": "2026-09-18T18:00:00+00:00",
   "source_name": "Massive Missile Attacks on Ukraine (Kaggle / piterfm)",
   "source_scope": "Historical public aggregate data",
@@ -43,7 +43,7 @@
       "rows": 2736,
       "positives": 56,
       "positive_rate": 0.02046783625730994,
-      "brier_score": 0.018535582685625742,
+      "brier_score": 0.018535582685623116,
       "average_precision": 0.19195773368081262,
       "roc_auc": 0.8666044776119403,
       "balanced_accuracy": 0.5
@@ -132,5 +132,37 @@
       "automatic": true
     }
   ],
-  "safety_scope": "Historical aggregated oblast-level analysis only; no live routes, exact targets, launch coordinates, or operational timing."
+  "safety_scope": "Historical aggregated oblast-level analysis only; no live routes, exact targets, launch coordinates, or operational timing.",
+  "multisource": {
+    "sources": {
+      "kaggle_missile_attacks": {
+        "role": "attack_records",
+        "active": true
+      },
+      "viina": {
+        "role": "independent_aerial_incident_evidence",
+        "active": true,
+        "rows": 8499,
+        "start": "2023-01-01 00:00:00+00:00",
+        "end": "2025-08-27 00:00:00+00:00"
+      },
+      "etryvoga_volunteer": {
+        "role": "air_raid_context_not_attack_labels",
+        "active": true,
+        "rows": 29423,
+        "start": "2022-02-25 00:00:00+00:00",
+        "end": "2026-09-23 00:00:00+00:00"
+      },
+      "acled": {
+        "role": "conflict_events_optional",
+        "active": false,
+        "reason": "API authentication required"
+      },
+      "ohchr": {
+        "role": "civilian_casualty_verification",
+        "active": false,
+        "reason": "Public reports are kept as a separate verification layer"
+      }
+    }
+  }
 }
