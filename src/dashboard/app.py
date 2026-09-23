@@ -10,10 +10,7 @@ import plotly.express as px
 import requests
 import streamlit as st
 
-from src.analysis.improvement import (
-    build_improvement_recommendations,
-    project_readiness_score,
-)
+from src.analysis.consensus import build_oblast_consensus
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DASHBOARD_DIR = ROOT_DIR / "data" / "dashboard"
@@ -21,6 +18,36 @@ GEOJSON_URL = (
     "https://raw.githubusercontent.com/darmat1/ukraine-geo-data/"
     "main/geodata/Ukraine.geojson"
 )
+
+UKRAINE_ADMIN1_FALLBACK = [
+    "Автономна Республіка Крим",
+    "Вінницька область",
+    "Волинська область",
+    "Дніпропетровська область",
+    "Донецька область",
+    "Житомирська область",
+    "Закарпатська область",
+    "Запорізька область",
+    "Івано-Франківська область",
+    "Київ",
+    "Київська область",
+    "Кіровоградська область",
+    "Луганська область",
+    "Львівська область",
+    "Миколаївська область",
+    "Одеська область",
+    "Полтавська область",
+    "Рівненська область",
+    "Севастополь",
+    "Сумська область",
+    "Тернопільська область",
+    "Харківська область",
+    "Херсонська область",
+    "Хмельницька область",
+    "Черкаська область",
+    "Чернівецька область",
+    "Чернігівська область",
+]
 
 ATTACK_TYPE_UA = {
     "uav": "БпЛА",
@@ -192,7 +219,8 @@ oblast_summary = parse_dates(
     load_csv("oblast_summary.csv"), ["first_seen", "last_seen"]
 )
 weapon_summary = load_csv("weapon_summary.csv")
-health_history = parse_dates(load_csv("health_history.csv"), ["generated_at"])
+viina_daily = parse_dates(load_csv("viina_oblast_daily.csv"), ["day"])
+siren_daily = parse_dates(load_csv("siren_oblast_daily.csv"), ["day"])
 
 if "attack_type" in weapon_summary.columns:
     weapon_summary["Категорія"] = (
@@ -222,21 +250,6 @@ latest_source = pd.to_datetime(
 
 quality = metadata.get("quality") or {}
 learning = metadata.get("learning") or {}
-improvement_recommendations = metadata.get("improvement_recommendations") or (
-    build_improvement_recommendations(
-        quality,
-        learning,
-        latest_source_event_at=metadata.get("latest_source_event_at"),
-    )
-)
-technical_readiness_score = metadata.get("technical_readiness_score")
-if technical_readiness_score is None:
-    technical_readiness_score = project_readiness_score(
-        quality,
-        learning,
-        latest_source_event_at=metadata.get("latest_source_event_at"),
-    )
-
 status_cols = st.columns([1.3, 1.3, 1.3, 2.2])
 status_cols[0].metric("Записів атак", fmt_int(metadata.get("attack_rows")))
 status_cols[1].metric("Зв'язків з областями", fmt_int(metadata.get("region_links")))
@@ -292,11 +305,13 @@ with st.sidebar:
     selected_oblast = st.selectbox("Область", oblast_options)
 
     st.divider()
-    st.caption("Джерело даних")
-    st.write("Kaggle — відкритий історичний набір piterfm")
+    st.caption("Джерела даних")
+    st.write("• Kaggle — історія ракетних атак і БпЛА")
+    st.write("• VIINA — незалежні геокодовані повітряні інциденти")
+    st.write("• eTryvoga — історія повітряних тривог (контекст)")
     st.caption(
-        "Регіональна розмітка джерела неповна, тому відсутність запису "
-        "не означає відсутність події."
+        "Джерела мають різні визначення події. Обстріли та тривоги "
+        "не змішуються як один тип факту."
     )
 
 if isinstance(date_range, tuple) and len(date_range) == 2:
@@ -316,6 +331,16 @@ period_oblast_daily = oblast_daily[
     & (oblast_daily["day"] < end_day)
 ].copy()
 
+period_viina_daily = viina_daily[
+    (viina_daily["day"] >= start_day)
+    & (viina_daily["day"] < end_day)
+].copy() if not viina_daily.empty else viina_daily.copy()
+
+period_siren_daily = siren_daily[
+    (siren_daily["day"] >= start_day)
+    & (siren_daily["day"] < end_day)
+].copy() if not siren_daily.empty else siren_daily.copy()
+
 if selected_oblast == "Усі області":
     overview_daily = filtered_national.copy()
     overview_daily["all_events"] = overview_daily["attack_records"]
@@ -327,14 +352,13 @@ else:
     overview_daily["all_events"] = overview_daily["attack_events"]
     scope_title = selected_oblast
 
-overview_tab, regions_tab, risk_tab, quality_tab, ml_tab, improve_tab = st.tabs(
+overview_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.tabs(
     [
         "Огляд",
         "Області",
         "Відсотки та оцінка",
         "Якість даних",
         "Модель",
-        "Що покращити",
     ]
 )
 
@@ -505,65 +529,97 @@ with overview_tab:
         )
 
 with regions_tab:
-    period_summary = (
+    st.subheader("Карта України за областями")
+    st.caption(
+        "Карта завжди показує всі адміністративні регіони. Наведи курсор на "
+        "область, щоб побачити дані з окремих джерел та узгоджену історичну частку."
+    )
+
+    geojson = load_geojson()
+    if geojson:
+        geo_oblasts = [
+            feature.get("properties", {}).get("name")
+            for feature in geojson.get("features", [])
+            if str(feature.get("properties", {}).get("admin_level")) == "4"
+            and feature.get("properties", {}).get("name")
+        ]
+        all_oblasts = sorted(set(geo_oblasts))
+    else:
+        all_oblasts = UKRAINE_ADMIN1_FALLBACK
+
+    consensus = build_oblast_consensus(
+        all_oblasts,
+        period_oblast_daily,
+        period_viina_daily,
+        period_siren_daily,
+    )
+
+    kaggle_details = (
         period_oblast_daily.groupby("oblast", as_index=False)
         .agg(
-            attack_events=("attack_events", "sum"),
             active_days=("day", "nunique"),
             uav_events=("uav_events", "sum"),
             missile_events=("missile_events", "sum"),
             guided_bomb_events=("guided_bomb_events", "sum"),
         )
-        .sort_values("attack_events", ascending=False)
+        if not period_oblast_daily.empty
+        else pd.DataFrame(
+            columns=[
+                "oblast",
+                "active_days",
+                "uav_events",
+                "missile_events",
+                "guided_bomb_events",
+            ]
+        )
     )
+    consensus = consensus.merge(kaggle_details, on="oblast", how="left")
+    for column in [
+        "active_days",
+        "uav_events",
+        "missile_events",
+        "guided_bomb_events",
+    ]:
+        consensus[column] = consensus[column].fillna(0).astype("int64")
 
-    total_regional_events = float(period_summary["attack_events"].sum())
-    period_summary["historical_share_pct"] = (
-        period_summary["attack_events"] / total_regional_events * 100
-        if total_regional_events
-        else 0.0
-    )
-
-    left, right = st.columns([1.45, 1.0])
+    left, right = st.columns([1.55, 1.0])
     clicked_oblast: str | None = None
 
     with left:
-        st.subheader("Інтерактивна карта областей")
-        st.caption(
-            "Натисни на область — нижче відкриється її статистика за вибраний період."
-        )
-        geojson = load_geojson()
-        if geojson and not period_summary.empty:
+        if geojson:
             map_fig = px.choropleth(
-                period_summary,
+                consensus,
                 geojson=geojson,
                 locations="oblast",
                 featureidkey="properties.name",
-                color="historical_share_pct",
+                color="consensus_share_pct",
                 custom_data=["oblast"],
                 hover_name="oblast",
                 hover_data={
-                    "historical_share_pct": ":.1f",
-                    "attack_events": True,
-                    "active_days": True,
-                    "uav_events": True,
-                    "missile_events": True,
-                    "guided_bomb_events": True,
+                    "consensus_share_pct": ":.1f",
+                    "kaggle_events": True,
+                    "viina_events": True,
+                    "alert_count": True,
+                    "evidence_sources": True,
                 },
                 labels={
-                    "historical_share_pct": "Історична частка, %",
-                    "attack_events": "Подій",
-                    "active_days": "Активних днів",
-                    "uav_events": "БпЛА",
-                    "missile_events": "Ракети",
-                    "guided_bomb_events": "Керовані авіабомби",
+                    "consensus_share_pct": "Узгоджена історична частка, %",
+                    "kaggle_events": "Записів атак (Kaggle)",
+                    "viina_events": "Повітряних інцидентів (VIINA)",
+                    "alert_count": "Повітряних тривог",
+                    "evidence_sources": "Джерел з подіями",
                 },
             )
-            map_fig.update_geos(fitbounds="locations", visible=False)
+            map_fig.update_traces(marker_line_width=0.8)
+            map_fig.update_geos(
+                fitbounds="locations",
+                visible=False,
+            )
             map_fig.update_layout(
-                margin=dict(l=0, r=0, t=20, b=0),
-                coloraxis_colorbar_title="Частка, %",
+                margin=dict(l=0, r=0, t=10, b=0),
+                coloraxis_colorbar_title="Консенсус, %",
                 clickmode="event+select",
+                height=680,
             )
             map_event = st.plotly_chart(
                 map_fig,
@@ -574,40 +630,42 @@ with regions_tab:
             )
             clicked_oblast = selected_map_oblast(map_event)
         else:
-            st.info("Карта тимчасово недоступна — показую рейтинг областей.")
-            if not period_summary.empty:
-                st.bar_chart(
-                    period_summary.set_index("oblast")["historical_share_pct"]
-                )
+            st.warning(
+                "GeoJSON карти тимчасово недоступний. Дані по областях "
+                "залишаються доступними у таблиці."
+            )
 
     with right:
-        st.subheader("Рейтинг областей")
-        table = period_summary[
+        st.subheader("Узгоджений рейтинг")
+        table = consensus[
             [
                 "oblast",
-                "attack_events",
-                "historical_share_pct",
-                "active_days",
+                "consensus_share_pct",
+                "kaggle_events",
+                "viina_events",
+                "alert_count",
             ]
         ].copy()
-        table["historical_share_pct"] = table["historical_share_pct"].map(
+        table["consensus_share_pct"] = table["consensus_share_pct"].map(
             fmt_pct_points
         )
         table = table.rename(
             columns={
                 "oblast": "Область",
-                "attack_events": "Історичних подій",
-                "historical_share_pct": "Частка, %",
-                "active_days": "Днів із подіями",
+                "consensus_share_pct": "Консенсус, %",
+                "kaggle_events": "Kaggle",
+                "viina_events": "VIINA",
+                "alert_count": "Тривоги",
             }
         )
         table_event = st.dataframe(
-            table.head(15),
+            table,
             use_container_width=True,
             hide_index=True,
             key="oblast_table",
             on_select="rerun",
             selection_mode="single-row",
+            height=620,
         )
 
     table_oblast: str | None = None
@@ -617,7 +675,7 @@ with regions_tab:
         selected_rows = []
     if selected_rows:
         row_index = int(selected_rows[0])
-        visible_table = table.head(15).reset_index(drop=True)
+        visible_table = table.reset_index(drop=True)
         if 0 <= row_index < len(visible_table):
             table_oblast = str(visible_table.iloc[row_index]["Область"])
 
@@ -626,100 +684,126 @@ with regions_tab:
         detail_oblast = selected_oblast
 
     if detail_oblast:
-        detail = period_oblast_daily[
-            period_oblast_daily["oblast"] == detail_oblast
-        ].copy()
-        row = period_summary[period_summary["oblast"] == detail_oblast]
-
         st.divider()
-        st.subheader(f"{detail_oblast}: історична статистика")
+        st.subheader(f"{detail_oblast}: детальна історична аналітика")
+        row = consensus[consensus["oblast"] == detail_oblast]
 
         if not row.empty:
             row = row.iloc[0]
             d1, d2, d3, d4 = st.columns(4)
-            d1.metric("Історичних подій", fmt_int(row["attack_events"]))
-            d2.metric(
-                "Частка серед розмічених подій",
-                fmt_pct_points(row["historical_share_pct"]),
+            d1.metric(
+                "Узгоджена історична частка",
+                fmt_pct_points(row["consensus_share_pct"]),
             )
-            d3.metric("Днів із подіями", fmt_int(row["active_days"]))
-            d4.metric(
-                "БпЛА / ракети",
-                f"{fmt_int(row['uav_events'])} / {fmt_int(row['missile_events'])}",
+            d2.metric("Записів атак (Kaggle)", fmt_int(row["kaggle_events"]))
+            d3.metric("Інцидентів (VIINA)", fmt_int(row["viina_events"]))
+            d4.metric("Повітряних тривог", fmt_int(row["alert_count"]))
+
+            d5, d6, d7, d8 = st.columns(4)
+            d5.metric("Днів із записами атак", fmt_int(row["active_days"]))
+            d6.metric("Подій БпЛА", fmt_int(row["uav_events"]))
+            d7.metric("Ракетних подій", fmt_int(row["missile_events"]))
+            d8.metric(
+                "Джерел із подіями",
+                f"{fmt_int(row['evidence_sources'])} / {fmt_int(row['active_attack_sources'])}",
             )
 
-        if not detail.empty:
-            region_fig = px.bar(
-                detail,
-                x="day",
-                y=["uav_events", "missile_events", "guided_bomb_events"],
-                labels={
-                    "value": "Кількість історичних подій",
-                    "day": "Дата",
-                    "variable": "Категорія",
-                },
+        kaggle_region = period_oblast_daily[
+            period_oblast_daily["oblast"] == detail_oblast
+        ][["day", "attack_events"]].copy()
+        if not kaggle_region.empty:
+            kaggle_region = kaggle_region.rename(
+                columns={"attack_events": "Kaggle: записи атак"}
             )
-            region_fig.for_each_trace(
-                lambda trace: trace.update(
-                    name={
-                        "uav_events": "БпЛА",
-                        "missile_events": "Ракети",
-                        "guided_bomb_events": "Керовані авіабомби",
-                    }.get(trace.name, trace.name)
+
+        viina_region = period_viina_daily[
+            period_viina_daily["oblast"] == detail_oblast
+        ][["day", "viina_events"]].copy() if not period_viina_daily.empty else pd.DataFrame()
+        if not viina_region.empty:
+            viina_region = viina_region.rename(
+                columns={"viina_events": "VIINA: повітряні інциденти"}
+            )
+
+        if not kaggle_region.empty or not viina_region.empty:
+            if kaggle_region.empty:
+                detail_daily = viina_region
+            elif viina_region.empty:
+                detail_daily = kaggle_region
+            else:
+                detail_daily = kaggle_region.merge(
+                    viina_region,
+                    on="day",
+                    how="outer",
                 )
+            detail_daily = detail_daily.fillna(0).sort_values("day")
+            detail_long = detail_daily.melt(
+                id_vars=["day"],
+                var_name="Джерело",
+                value_name="Кількість",
             )
-            st.plotly_chart(region_fig, use_container_width=True)
+            detail_fig = px.line(
+                detail_long,
+                x="day",
+                y="Кількість",
+                color="Джерело",
+                labels={"day": "Дата"},
+            )
+            st.plotly_chart(detail_fig, use_container_width=True)
+
+        st.caption(
+            "Kaggle та VIINA мають різні методики збору, тому їхні сирі "
+            "кількості не додаються. Консенсус — середнє нормалізованих "
+            "часток кожного незалежного джерела."
+        )
 
 with risk_tab:
-    st.subheader("Відсотковий розподіл за областями")
+    st.subheader("Узгоджений відсотковий розподіл за областями")
     st.caption(
-        "Це історична частка розмічених подій у вибраному періоді, "
-        "а не твердження про те, де відбудеться наступний удар."
+        "Цей показник усереднює нормалізовані історичні частки незалежних "
+        "джерел атак/повітряних інцидентів. Тривоги показуються окремо "
+        "та не рахуються як факт обстрілу."
     )
 
-    risk_summary = (
-        period_oblast_daily.groupby("oblast", as_index=False)["attack_events"]
-        .sum()
-        .sort_values("attack_events", ascending=False)
-    )
-    total = float(risk_summary["attack_events"].sum())
-    risk_summary["share_pct"] = (
-        risk_summary["attack_events"] / total * 100 if total else 0.0
+    risk_geojson = load_geojson()
+    if risk_geojson:
+        risk_oblasts = [
+            feature.get("properties", {}).get("name")
+            for feature in risk_geojson.get("features", [])
+            if str(feature.get("properties", {}).get("admin_level")) == "4"
+            and feature.get("properties", {}).get("name")
+        ]
+    else:
+        risk_oblasts = UKRAINE_ADMIN1_FALLBACK
+
+    risk_summary = build_oblast_consensus(
+        risk_oblasts,
+        period_oblast_daily,
+        period_viina_daily,
+        period_siren_daily,
     )
 
     if not risk_summary.empty:
         risk_chart = px.bar(
             risk_summary.head(15),
-            x="share_pct",
+            x="consensus_share_pct",
             y="oblast",
             orientation="h",
+            hover_data=["kaggle_events", "viina_events", "alert_count"],
             labels={
-                "share_pct": "Історична частка, %",
+                "consensus_share_pct": "Узгоджена історична частка, %",
                 "oblast": "Область",
+                "kaggle_events": "Kaggle",
+                "viina_events": "VIINA",
+                "alert_count": "Тривоги",
             },
         )
         risk_chart.update_layout(yaxis={"categoryorder": "total ascending"})
         st.plotly_chart(risk_chart, use_container_width=True)
 
-    if learning.get("model_ready_for_serving"):
-        st.success(
-            "Модель пройшла поточні пороги якості даних. "
-            "Агреговану модельну оцінку для області/доби можна публікувати "
-            "окремо від історичної частки."
-        )
-    else:
-        st.warning(
-            "Модель поки не показує майбутні відсотки як надійний прогноз: "
-            "регіональна розмітка даних недостатньо повна. "
-            "Показувати точні відсотки зараз означало б створити хибну точність."
-        )
-        for reason in learning.get("model_readiness_reasons") or []:
-            st.write(f"• {translate_reason(reason)}")
-
     st.info(
-        "Рівень міста не використовується для прогнозування майбутнього удару. "
-        "Проєкт працює з агрегованою аналітикою на рівні області та широких "
-        "часових вікон."
+        "Це історична мультиджерельна аналітика, а не твердження про місце "
+        "майбутнього удару. Модельний прогноз не публікується, доки якість "
+        "регіональної розмітки не проходить задані пороги."
     )
 
 with quality_tab:
@@ -854,114 +938,6 @@ with ml_tab:
         "не переписує сирі дані без правил і не перетворює неповні дані "
         "на точний прогноз."
     )
-
-with improve_tab:
-    st.subheader("Що система рекомендує покращити")
-    st.caption(
-        "Це автоматичний аудит самого проєкту. Він аналізує якість даних, "
-        "свіжість джерела та результати моделі, але не змінює сирі факти самостійно."
-    )
-
-    r1, r2, r3 = st.columns(3)
-    r1.metric("Технічна готовність", f"{int(technical_readiness_score)} / 100")
-    r2.metric(
-        "Високих пріоритетів",
-        fmt_int(
-            sum(
-                1
-                for item in improvement_recommendations
-                if item.get("level") in {"Критично", "Високий"}
-            )
-        ),
-    )
-    r3.metric(
-        "Автоматизованих дій",
-        fmt_int(
-            sum(
-                1
-                for item in improvement_recommendations
-                if item.get("automatic") is True
-            )
-        ),
-    )
-    st.progress(min(1.0, max(0.0, float(technical_readiness_score) / 100.0)))
-
-    st.markdown("#### Пріоритетний план")
-    for index, item in enumerate(improvement_recommendations, start=1):
-        level = item.get("level", "—")
-        title = item.get("title", "Рекомендація")
-        area = item.get("area", "Система")
-        automatic = (
-            "може контролювати автоматично"
-            if item.get("automatic")
-            else "потребує розвитку або нового джерела"
-        )
-        with st.expander(f"{index}. [{level}] {title}", expanded=index <= 3):
-            st.write(f"**Напрям:** {area}")
-            st.write(f"**Що виявлено:** {item.get('finding', '—')}")
-            st.write(f"**Що робити:** {item.get('action', '—')}")
-            st.caption(f"Статус дії: {automatic}.")
-
-    st.markdown("#### Як проєкт сам себе покращує")
-    st.write(
-        "Після кожного циклу система перевіряє якість даних, формує список "
-        "слабких місць, навчає модель-кандидата, порівнює її з базовою та "
-        "чинною моделями й не замінює чинну, якщо кандидат не кращий."
-    )
-
-    if not health_history.empty:
-        st.markdown("#### Чи стає система кращою")
-        history = health_history.sort_values("generated_at").copy()
-        history["Покриття областями, %"] = (
-            pd.to_numeric(history["region_coverage_rate"], errors="coerce") * 100
-        )
-        history["Покриття 90 днів, %"] = (
-            pd.to_numeric(
-                history["recent_region_coverage_90d"], errors="coerce"
-            ) * 100
-        )
-        history["Технічна готовність"] = pd.to_numeric(
-            history["technical_readiness_score"], errors="coerce"
-        )
-
-        progress_long = history.melt(
-            id_vars=["generated_at"],
-            value_vars=[
-                "Технічна готовність",
-                "Покриття областями, %",
-                "Покриття 90 днів, %",
-            ],
-            var_name="Показник",
-            value_name="Значення",
-        )
-        progress_fig = px.line(
-            progress_long,
-            x="generated_at",
-            y="Значення",
-            color="Показник",
-            markers=True,
-            labels={
-                "generated_at": "Дата циклу",
-                "Значення": "Значення",
-            },
-        )
-        st.plotly_chart(progress_fig, use_container_width=True)
-
-        if "candidate_average_precision" in history.columns:
-            model_progress = history[
-                ["generated_at", "candidate_average_precision", "candidate_brier_score"]
-            ].copy()
-            model_progress = model_progress.rename(
-                columns={
-                    "candidate_average_precision": "Середня точність",
-                    "candidate_brier_score": "Показник Брієра",
-                }
-            )
-            st.dataframe(
-                model_progress.tail(10),
-                use_container_width=True,
-                hide_index=True,
-            )
 
 st.divider()
 st.caption(
