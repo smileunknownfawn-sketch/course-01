@@ -1,0 +1,64 @@
+name: weekly-learning-cycle
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  learn:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore previous champion
+        uses: actions/cache/restore@v4
+        with:
+          path: models
+          key: ml-champion-${{ github.run_id }}
+          restore-keys: |
+            ml-champion-
+
+      - name: Download current public source data
+        run: python scripts/download_kaggle.py
+
+      - name: Build normalized tables
+        run: python scripts/build_processed_kaggle.py
+
+      - name: Run controlled learning cycle
+        run: python scripts/self_improve.py
+
+      - name: Run test suite
+        run: pytest
+
+      - name: Save champion for next run
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: models
+          key: ml-champion-${{ github.run_id }}
+
+      - name: Upload learning report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: learning-cycle-${{ github.run_number }}
+          path: |
+            models/*.json
+            models/*.joblib
+            data/processed/unmapped_regions.csv
+          if-no-files-found: warn
+          retention-days: 30
