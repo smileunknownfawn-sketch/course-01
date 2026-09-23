@@ -13,7 +13,12 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from src.data.config import PROCESSED_DIR
-from src.data.quality import assert_quality_gate, build_quality_report, report_to_dict
+from src.data.quality import (
+    assess_model_readiness,
+    assert_quality_gate,
+    build_quality_report,
+    report_to_dict,
+)
 
 
 def _read(name: str) -> pd.DataFrame:
@@ -31,8 +36,22 @@ def main() -> None:
     unmapped_path = PROCESSED_DIR / "unmapped_regions.csv"
     unmapped = pd.read_csv(unmapped_path) if unmapped_path.exists() else None
 
-    report = build_quality_report(attacks, attack_regions, weapons, unmapped)
+    duplicates_path = PROCESSED_DIR / "source_duplicates.csv"
+    source_duplicates = (
+        pd.read_csv(duplicates_path) if duplicates_path.exists() else None
+    )
+
+    report = build_quality_report(
+        attacks,
+        attack_regions,
+        weapons,
+        unmapped,
+        source_duplicates,
+    )
     payload = report_to_dict(report)
+    model_ready, readiness_reasons = assess_model_readiness(report)
+    payload["model_ready_for_serving"] = model_ready
+    payload["model_readiness_reasons"] = readiness_reasons
 
     output = PROCESSED_DIR / "data_quality_report.json"
     output.write_text(
