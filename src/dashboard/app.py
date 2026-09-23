@@ -7,17 +7,13 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
-import requests
 import streamlit as st
 
 from src.analysis.consensus import build_oblast_consensus
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DASHBOARD_DIR = ROOT_DIR / "data" / "dashboard"
-GEOJSON_URL = (
-    "https://raw.githubusercontent.com/darmat1/ukraine-geo-data/"
-    "main/geodata/Ukraine.geojson"
-)
+GEOJSON_PATH = ROOT_DIR / "data" / "geo" / "ukraine_admin1.geojson"
 
 UKRAINE_ADMIN1_FALLBACK = [
     "Автономна Республіка Крим",
@@ -129,13 +125,14 @@ def load_metadata() -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-@st.cache_data(ttl=86400)
+@st.cache_data
 def load_geojson() -> dict[str, object] | None:
     try:
-        response = requests.get(GEOJSON_URL, timeout=15)
-        response.raise_for_status()
-        return response.json()
-    except (requests.RequestException, ValueError):
+        geojson = json.loads(GEOJSON_PATH.read_text(encoding="utf-8"))
+        if geojson.get("type") != "FeatureCollection" or not geojson.get("features"):
+            return None
+        return geojson
+    except (OSError, ValueError):
         return None
 
 
@@ -201,13 +198,13 @@ def selected_map_oblast(event: object) -> str | None:
 
     point = points[0]
     if hasattr(point, "get"):
-        location = point.get("location")
-        if location:
-            return str(location)
-
         customdata = point.get("customdata")
         if isinstance(customdata, (list, tuple)) and customdata:
             return str(customdata[0])
+
+        location = point.get("location")
+        if location:
+            return str(location)
 
     return None
 
@@ -250,25 +247,27 @@ latest_source = pd.to_datetime(
 
 quality = metadata.get("quality") or {}
 learning = metadata.get("learning") or {}
-status_cols = st.columns([1.3, 1.3, 1.3, 2.2])
-status_cols[0].metric("Записів атак", fmt_int(metadata.get("attack_rows")))
-status_cols[1].metric("Зв'язків з областями", fmt_int(metadata.get("region_links")))
-status_cols[2].metric(
-    "Покриття областями",
-    fmt_pct(quality.get("region_coverage_rate")),
-)
-status_cols[3].metric(
-    "Остання дата у джерелі",
-    latest_source.strftime("%d.%m.%Y") if pd.notna(latest_source) else "—",
-)
 
-if pd.notna(generated_at):
-    st.caption(
-        "Дані панелі оновлено: "
-        + generated_at.strftime("%d.%m.%Y %H:%M UTC")
-    )
+geojson = load_geojson()
+map_oblasts = [
+    feature["properties"]["name"]
+    for feature in (geojson or {}).get("features", [])
+    if feature.get("properties", {}).get("name")
+]
+known_oblasts = set(map_oblasts or UKRAINE_ADMIN1_FALLBACK)
+for frame in (oblast_daily, viina_daily, siren_daily):
+    if "oblast" in frame.columns:
+        known_oblasts.update(frame["oblast"].dropna().unique())
 
-min_day = national_daily["day"].min()
+pending_oblast = st.session_state.pop("pending_oblast", None)
+if pending_oblast in known_oblasts:
+    st.session_state["selected_oblast"] = pending_oblast
+
+min_day = min(
+    frame["day"].min()
+    for frame in (national_daily, viina_daily, siren_daily)
+    if not frame.empty
+)
 max_day = national_daily["day"].max()
 
 with st.sidebar:
@@ -299,10 +298,8 @@ with st.sidebar:
     else:
         date_range = (min_day.date(), max_day.date())
 
-    oblast_options = ["Усі області"]
-    if not oblast_summary.empty:
-        oblast_options += sorted(oblast_summary["oblast"].dropna().unique().tolist())
-    selected_oblast = st.selectbox("Область", oblast_options)
+    oblast_options = ["Усі області", *sorted(known_oblasts)]
+    selected_oblast = st.selectbox("Область", oblast_options, key="selected_oblast")
 
     st.divider()
     st.caption("Джерела даних")
@@ -313,6 +310,10 @@ with st.sidebar:
         "Джерела мають різні визначення події. Обстріли та тривоги "
         "не змішуються як один тип факту."
     )
+    if not viina_daily.empty:
+        st.caption("VIINA: останній запис " + viina_daily["day"].max().strftime("%d.%m.%Y"))
+    if pd.notna(latest_source):
+        st.caption("Kaggle: останній запис " + latest_source.strftime("%d.%m.%Y"))
 
 if isinstance(date_range, tuple) and len(date_range) == 2:
     start_day = pd.Timestamp(date_range[0], tz="UTC")
@@ -352,6 +353,20 @@ else:
     overview_daily["all_events"] = overview_daily["attack_events"]
     scope_title = selected_oblast
 
+scope_viina = period_viina_daily if selected_oblast == "Усі області" or period_viina_daily.empty else (
+    period_viina_daily[period_viina_daily["oblast"] == selected_oblast]
+)
+scope_sirens = period_siren_daily if selected_oblast == "Усі області" or period_siren_daily.empty else (
+    period_siren_daily[period_siren_daily["oblast"] == selected_oblast]
+)
+st.subheader(f"{scope_title} · вибраний період")
+status_cols = st.columns(3)
+status_cols[0].metric("Записів атак · Kaggle", fmt_int(overview_daily["all_events"].sum()))
+status_cols[1].metric("Повітряних інцидентів · VIINA", fmt_int(scope_viina["viina_events"].sum()) if not scope_viina.empty else "0")
+status_cols[2].metric("Тривог · окремий контекст", fmt_int(scope_sirens["alert_count"].sum()) if not scope_sirens.empty else "0")
+if pd.notna(generated_at):
+    st.caption("Знімок даних оновлено: " + generated_at.strftime("%d.%m.%Y %H:%M UTC"))
+
 overview_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.tabs(
     [
         "Огляд",
@@ -364,6 +379,13 @@ overview_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.tabs(
 
 with overview_tab:
     st.subheader(f"Огляд: {scope_title}")
+
+    source_viina = scope_viina
+    st.caption(
+        f"За вибраний період: {fmt_int(source_viina['viina_events'].sum()) if not source_viina.empty else '0'} "
+        "геокодованих повітряних інцидентів VIINA. Цей показник ведеться "
+        "окремо від записів атак Kaggle."
+    )
 
     if selected_oblast == "Усі області":
         current_30 = national_daily[
@@ -454,20 +476,15 @@ with overview_tab:
         )
 
     st.subheader("Динаміка історичних записів")
-    if overview_daily.empty:
+    if overview_daily.empty and source_viina.empty:
         st.info("За вибраний період для цієї області немає розмічених записів.")
     else:
         timeline = overview_daily.melt(
             id_vars=["day"],
-            value_vars=[
-                "all_events",
-                "uav_events",
-                "missile_events",
-                "guided_bomb_events",
-            ],
+            value_vars=["all_events", "uav_events", "missile_events", "guided_bomb_events"],
             var_name="series",
             value_name="count",
-        )
+        ) if not overview_daily.empty else pd.DataFrame(columns=["day", "series", "count"])
         labels = {
             "all_events": "Усі події",
             "uav_events": "БпЛА",
@@ -475,6 +492,14 @@ with overview_tab:
             "guided_bomb_events": "Керовані авіабомби",
         }
         timeline["series"] = timeline["series"].map(labels)
+        if not source_viina.empty:
+            viina_timeline = source_viina.groupby("day", as_index=False)["viina_events"].sum()
+            viina_timeline = viina_timeline.rename(columns={"viina_events": "count"})
+            viina_timeline["series"] = "VIINA: повітряні інциденти"
+            timeline = (
+                pd.concat([timeline, viina_timeline], ignore_index=True)
+                if not timeline.empty else viina_timeline
+            )
         fig = px.line(
             timeline,
             x="day",
@@ -482,7 +507,7 @@ with overview_tab:
             color="series",
             labels={"day": "Дата", "count": "Кількість", "series": "Категорія"},
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     st.subheader("Структура подій за типом")
     structure = pd.DataFrame(
@@ -503,28 +528,31 @@ with overview_tab:
         structure["Частка, %"] = (
             structure["Кількість"] / structure["Кількість"].sum() * 100
         )
-        structure_chart = px.pie(
-            structure,
-            names="Категорія",
-            values="Кількість",
-            hole=0.45,
+        structure_chart = px.bar(
+            structure.sort_values("Частка, %"),
+            x="Частка, %",
+            y="Категорія",
+            orientation="h",
+            text="Частка, %",
+            hover_data={"Кількість": True, "Частка, %": ":.1f"},
+            range_x=[0, 105],
         )
         structure_chart.update_traces(
-            textposition="inside",
-            textinfo="label+percent",
-            hovertemplate="%{label}: %{value:.0f} подій (%{percent})<extra></extra>",
+            texttemplate="%{text:.1f}%",
+            textposition="outside",
+            cliponaxis=False,
         )
         structure_chart.update_layout(
-            margin=dict(l=10, r=10, t=10, b=10),
-            legend_title_text="Категорія",
+            margin=dict(l=10, r=28, t=10, b=10),
+            height=max(210, 65 * len(structure) + 70),
         )
-        st.plotly_chart(structure_chart, use_container_width=True)
+        st.plotly_chart(structure_chart, width="stretch")
 
         structure_table = structure.copy()
         structure_table["Частка, %"] = structure_table["Частка, %"].map(fmt_pct_points)
         st.dataframe(
             structure_table,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -534,21 +562,10 @@ with regions_tab:
         "Карта завжди показує всі адміністративні регіони. Наведи курсор на "
         "область, щоб побачити дані з окремих джерел та узгоджену історичну частку."
     )
-
-    geojson = load_geojson()
-    if geojson:
-        geo_oblasts = [
-            feature.get("properties", {}).get("name")
-            for feature in geojson.get("features", [])
-            if str(feature.get("properties", {}).get("admin_level")) == "4"
-            and feature.get("properties", {}).get("name")
-        ]
-        all_oblasts = sorted(set(geo_oblasts))
-    else:
-        all_oblasts = UKRAINE_ADMIN1_FALLBACK
+    st.caption("Межі: OpenStreetMap (ODbL), набір ukraine-geo-data. Міста Київ і Севастополь не мають окремих контурів у цьому наборі.")
 
     consensus = build_oblast_consensus(
-        all_oblasts,
+        sorted(known_oblasts),
         period_oblast_daily,
         period_viina_daily,
         period_siren_daily,
@@ -588,7 +605,7 @@ with regions_tab:
     with left:
         if geojson:
             map_fig = px.choropleth(
-                consensus,
+                consensus[consensus["oblast"].isin(map_oblasts)],
                 geojson=geojson,
                 locations="oblast",
                 featureidkey="properties.name",
@@ -623,12 +640,17 @@ with regions_tab:
             )
             map_event = st.plotly_chart(
                 map_fig,
-                use_container_width=True,
+                width="stretch",
                 key="oblast_map",
                 on_select="rerun",
                 selection_mode="points",
             )
             clicked_oblast = selected_map_oblast(map_event)
+            if clicked_oblast != st.session_state.get("last_map_selection"):
+                st.session_state["last_map_selection"] = clicked_oblast
+                if clicked_oblast in known_oblasts:
+                    st.session_state["pending_oblast"] = clicked_oblast
+                    st.rerun()
         else:
             st.warning(
                 "GeoJSON карти тимчасово недоступний. Дані по областях "
@@ -660,7 +682,7 @@ with regions_tab:
         )
         table_event = st.dataframe(
             table,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             key="oblast_table",
             on_select="rerun",
@@ -679,9 +701,15 @@ with regions_tab:
         if 0 <= row_index < len(visible_table):
             table_oblast = str(visible_table.iloc[row_index]["Область"])
 
-    detail_oblast = clicked_oblast or table_oblast
-    if detail_oblast is None and selected_oblast != "Усі області":
-        detail_oblast = selected_oblast
+    if table_oblast != st.session_state.get("last_table_selection"):
+        st.session_state["last_table_selection"] = table_oblast
+        if table_oblast in known_oblasts:
+            st.session_state["pending_oblast"] = table_oblast
+            st.rerun()
+
+    detail_oblast = selected_oblast if selected_oblast != "Усі області" else (
+        clicked_oblast or table_oblast
+    )
 
     if detail_oblast:
         st.divider()
@@ -748,7 +776,7 @@ with regions_tab:
                 color="Джерело",
                 labels={"day": "Дата"},
             )
-            st.plotly_chart(detail_fig, use_container_width=True)
+            st.plotly_chart(detail_fig, width="stretch")
 
         st.caption(
             "Kaggle та VIINA мають різні методики збору, тому їхні сирі "
@@ -764,19 +792,8 @@ with risk_tab:
         "та не рахуються як факт обстрілу."
     )
 
-    risk_geojson = load_geojson()
-    if risk_geojson:
-        risk_oblasts = [
-            feature.get("properties", {}).get("name")
-            for feature in risk_geojson.get("features", [])
-            if str(feature.get("properties", {}).get("admin_level")) == "4"
-            and feature.get("properties", {}).get("name")
-        ]
-    else:
-        risk_oblasts = UKRAINE_ADMIN1_FALLBACK
-
     risk_summary = build_oblast_consensus(
-        risk_oblasts,
+        sorted(known_oblasts),
         period_oblast_daily,
         period_viina_daily,
         period_siren_daily,
@@ -798,7 +815,7 @@ with risk_tab:
             },
         )
         risk_chart.update_layout(yaxis={"categoryorder": "total ascending"})
-        st.plotly_chart(risk_chart, use_container_width=True)
+        st.plotly_chart(risk_chart, width="stretch")
 
     st.info(
         "Це історична мультиджерельна аналітика, а не твердження про місце "
@@ -845,11 +862,11 @@ with quality_tab:
             value = fmt_pct(value)
         elif key == "model_ready_for_serving":
             value = "Так" if value else "Ні"
-        quality_rows.append({"Показник": label, "Значення": value})
+        quality_rows.append({"Показник": label, "Значення": str(value)})
 
     st.dataframe(
         pd.DataFrame(quality_rows),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
@@ -924,7 +941,7 @@ with ml_tab:
     if comparison_rows:
         st.dataframe(
             pd.DataFrame(comparison_rows),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
