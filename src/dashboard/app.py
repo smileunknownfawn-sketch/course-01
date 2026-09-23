@@ -119,6 +119,7 @@ st.set_page_config(
     page_title="Історична аналітика атак по Україні",
     page_icon="📊",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown(
@@ -126,38 +127,94 @@ st.markdown(
     :root { color-scheme: light; }
     [data-testid="stAppViewContainer"] { background: #f3f7fc; color: #17283c; }
     [data-testid="stHeader"] { background: #f3f7fc; }
-    .block-container { max-width: 1420px; padding-top: 1.25rem; padding-bottom: 3rem; }
-    h1, h2, h3 { color: #123253; letter-spacing: -.025em; }
-    h1 { font-size: clamp(2rem, 3vw, 2.75rem); padding-bottom: .2rem; }
-    h3 { padding-top: .75rem; }
+    .block-container { max-width: 1480px; padding-top: 1.35rem; padding-bottom: 3rem; }
+    h1, h2, h3 { color: #123253; letter-spacing: -.025em; line-height: 1.2; }
+    [data-testid="stMarkdownContainer"] h2 { font-size: clamp(1.7rem, 2.1vw, 2.15rem); }
+    [data-testid="stMarkdownContainer"] h3 { font-size: clamp(1.35rem, 1.7vw, 1.7rem); padding-top: .7rem; }
+    .dashboard-hero {
+      text-align: center; padding: 2.45rem 1.5rem 2.15rem; margin-bottom: 1.45rem;
+      border: 1px solid #cfdfed; border-radius: 24px;
+      background: linear-gradient(125deg, #e0f1fb 0%, #f5f9ff 60%, #e9f5f1 100%);
+    }
+    .dashboard-hero .eyebrow {
+      color: #126d85; font-size: 1rem; font-weight: 800;
+      letter-spacing: .11em; text-transform: uppercase;
+    }
+    .dashboard-hero h1 {
+      margin: .65rem auto 1rem; max-width: 950px;
+      color: #123253; font-size: clamp(2.3rem, 4.2vw, 4.15rem);
+      line-height: 1.12; font-weight: 800;
+    }
+    .dashboard-hero p {
+      margin: 0 auto; max-width: 820px;
+      color: #35516c; font-size: clamp(1.07rem, 1.55vw, 1.3rem);
+      line-height: 1.55;
+    }
     [data-testid="stMetric"] {
       background: #fff; border: 1px solid #dce6f1; border-radius: 16px;
-      padding: 1.05rem 1.2rem; box-shadow: 0 5px 22px rgba(22,53,85,.045);
-      min-height: 112px;
+      padding: 1.1rem 1.25rem; box-shadow: 0 5px 22px rgba(22,53,85,.045);
+      min-height: 125px;
     }
     [data-testid="stMetricLabel"] { color: #536981; font-weight: 600; }
-    [data-testid="stMetricLabel"] p { font-size: 1rem !important; line-height: 1.45; }
+    [data-testid="stMetricLabel"] p { font-size: 1.08rem !important; line-height: 1.45; }
     [data-testid="stMetricValue"] { color: #113e68; font-weight: 750; letter-spacing: -.035em; }
-    [data-testid="stMetricValue"] div { font-size: clamp(1.7rem, 2.1vw, 2.35rem); }
-    [data-testid="stSidebar"] { background: #eaf1fa; border-right: 1px solid #d9e4f0; }
-    .stTabs [data-baseweb="tab-list"] { gap: .35rem; border-bottom: 1px solid #d6e3f0; }
-    .stTabs [data-baseweb="tab"] { color: #48617c; font-weight: 650; padding: .75rem 1rem; }
-    .stTabs [aria-selected="true"] { color: #075a97; border-bottom: 3px solid #1484bf; }
+    [data-testid="stMetricValue"] div { font-size: clamp(1.8rem, 2.25vw, 2.55rem); }
+    .stTabs [data-baseweb="tab-list"] {
+      display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .65rem; padding: .2rem 0 1.2rem; overflow: visible;
+    }
+    .stTabs [data-baseweb="tab"] {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; min-height: 64px; padding: .7rem 1rem;
+      color: #294965; background: #fff; font-size: 1.13rem;
+      line-height: 1.3; font-weight: 700; white-space: normal;
+      border: 1px solid #d8e4ef; border-radius: 14px;
+      box-shadow: 0 3px 10px rgba(22,53,85,.04);
+    }
+    .stTabs [data-baseweb="tab"]:hover, .stTabs [data-baseweb="tab"]:focus-visible {
+      border-color: #2287b8; background: #edf7fc;
+    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+      color: #fff; background: #126b9e; border-color: #126b9e;
+      box-shadow: 0 5px 16px rgba(18,107,158,.18);
+    }
+    .stTabs [data-baseweb="tab-border"], .stTabs [data-baseweb="tab-highlight"] {
+      display: none;
+    }
     [data-testid="stPlotlyChart"], [data-testid="stDataFrame"] {
       background: #fff; border: 1px solid #dce6f1; border-radius: 16px;
       padding: .65rem; overflow: hidden;
     }
     [data-testid="stCaptionContainer"] { color: #526981; }
-    [data-testid="stCaptionContainer"] p { font-size: .95rem !important; line-height: 1.55; }
+    [data-testid="stCaptionContainer"] p { font-size: 1.05rem !important; line-height: 1.6; }
     [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li {
-      font-size: 1rem; line-height: 1.6;
+      font-size: 1.1rem; line-height: 1.65;
     }
-    [data-testid="stSidebar"] label, .stTabs [data-baseweb="tab"] { font-size: 1rem; }
-    [data-testid="stDataFrame"] { font-size: .95rem; }
+    [data-testid="stMarkdownContainer"] .dashboard-hero p {
+      font-size: clamp(1.07rem, 1.55vw, 1.3rem); line-height: 1.55;
+    }
+    [data-testid="stWidgetLabel"] p {
+      font-size: 1.08rem !important; font-weight: 700;
+    }
+    [data-baseweb="select"] *, [data-baseweb="input"] input {
+      font-size: 1.08rem !important;
+    }
+    [data-testid="stAlert"] p, [data-testid="stAlert"] li {
+      font-size: 1.08rem !important; line-height: 1.55;
+    }
+    [data-testid="stDataFrame"] { font-size: 1.05rem; }
+    @media (max-width: 1050px) {
+      .stTabs [data-baseweb="tab-list"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
     @media (max-width: 760px) {
-      .block-container { padding: .85rem .75rem 2rem; }
-      [data-testid="stMetric"] { min-height: 92px; padding: .8rem; }
-      .stTabs [data-baseweb="tab"] { padding: .65rem .75rem; }
+      .block-container { padding: .8rem .7rem 2rem; }
+      .dashboard-hero { padding: 1.8rem 1rem; border-radius: 18px; }
+      .dashboard-hero h1 { font-size: clamp(2.2rem, 8vw, 3rem); }
+      [data-testid="stMetric"] { min-height: 110px; padding: .85rem; }
+      .stTabs [data-baseweb="tab"] { min-height: 66px; padding: .65rem .6rem; font-size: 1.03rem; }
+    }
+    @media (max-width: 410px) {
+      .stTabs [data-baseweb="tab-list"] { grid-template-columns: 1fr; }
     }
     </style>""",
     unsafe_allow_html=True,
@@ -221,14 +278,14 @@ def style_chart(fig: go.Figure, *, height: int) -> go.Figure:
     fig.update_layout(
         template="plotly_white", height=height,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Arial, sans-serif", size=15, color="#233c58"),
-        hoverlabel=dict(font_size=15, bgcolor="#ffffff", font_color="#17334e"),
+        font=dict(family="Arial, sans-serif", size=17, color="#233c58"),
+        hoverlabel=dict(font_size=17, bgcolor="#ffffff", font_color="#17334e"),
         margin=dict(l=22, r=26, t=32, b=42),
-        legend=dict(font_size=14, orientation="h", y=1.16),
+        legend=dict(font_size=16, orientation="h", y=1.16),
     )
-    fig.update_xaxes(tickfont_size=14, title_font_size=15, showgrid=False,
+    fig.update_xaxes(tickfont_size=16, title_font_size=17, showgrid=False,
                      linecolor="#ccdbe9", zeroline=False)
-    fig.update_yaxes(tickfont_size=14, title_font_size=15,
+    fig.update_yaxes(tickfont_size=16, title_font_size=17,
                      gridcolor="#e6edf5", zeroline=False)
     return fig
 
@@ -306,11 +363,14 @@ if "attack_type" in weapon_summary.columns:
         )
     )
 
-st.title("Історична аналітика атак по Україні")
-st.caption(
-    "Агрегований навчальний проєкт на основі відкритих історичних даних. "
-    "Не показує оперативні маршрути, точні цілі, координати запусків "
-    "або точний час майбутніх ударів."
+st.markdown(
+    """<section class="dashboard-hero" aria-labelledby="dashboard-title">
+      <div class="eyebrow">Відкриті історичні дані</div>
+      <h1 id="dashboard-title">Аналітика атак по Україні</h1>
+      <p>Досліджуйте записи про атаки, заявлені збиття та дані за областями.
+      Оберіть період і область нижче, щоб побачити потрібну інформацію.</p>
+    </section>""",
+    unsafe_allow_html=True,
 )
 
 if not metadata or national_daily.empty:
@@ -350,13 +410,21 @@ min_day = min(
 )
 max_day = national_daily["day"].max()
 
-with st.sidebar:
-    st.header("Фільтри")
-    period_mode = st.selectbox(
-        "Швидкий період",
-        ["Останні 30 днів", "Останні 90 днів", "Увесь період", "Власний період"],
-        index=2,
-    )
+with st.container(border=True):
+    st.subheader("Налаштуйте перегляд")
+    filter_cols = st.columns(2, gap="large")
+    with filter_cols[0]:
+        period_mode = st.selectbox(
+            "1. Період даних",
+            ["Увесь період", "Останні 30 днів", "Останні 90 днів", "Власний період"],
+            help="Останні 30 або 90 днів відраховуються від найновішого запису, а не від сьогодні.",
+        )
+    with filter_cols[1]:
+        oblast_options = ["Усі області", *sorted(known_oblasts)]
+        selected_oblast = st.selectbox(
+            "2. Область", oblast_options, key="selected_oblast",
+            help="Оберіть область тут або натисніть на неї на карті в розділі «Карта областей».",
+        )
 
     if period_mode == "Останні 30 днів":
         date_range = (
@@ -370,22 +438,16 @@ with st.sidebar:
         )
     elif period_mode == "Власний період":
         date_range = st.date_input(
-            "Період",
-            value=(min_day.date(), max_day.date()),
-            min_value=min_day.date(),
-            max_value=max_day.date(),
+            "Дати: від і до", value=(min_day.date(), max_day.date()),
+            min_value=min_day.date(), max_value=max_day.date(),
         )
     else:
         date_range = (min_day.date(), max_day.date())
 
-    oblast_options = ["Усі області", *sorted(known_oblasts)]
-    selected_oblast = st.selectbox("Область", oblast_options, key="selected_oblast")
-
-    st.divider()
-    st.caption("Джерела даних")
-    st.write("• Kaggle — історія ракетних атак і БпЛА")
-    st.write("• VIINA — незалежні геокодовані повітряні інциденти")
-    st.write("• eTryvoga — історія повітряних тривог (контекст)")
+with st.expander("ℹ️ Джерела та дати останніх записів"):
+    st.write("**Kaggle** — історичні записи про ракетні атаки й БпЛА")
+    st.write("**VIINA** — окремі геокодовані повітряні інциденти")
+    st.write("**eTryvoga** — історія повітряних тривог, лише для контексту")
     st.caption(
         "Джерела мають різні визначення події. Обстріли та тривоги "
         "не змішуються як один тип факту."
@@ -394,6 +456,12 @@ with st.sidebar:
         st.caption("VIINA: останній запис " + viina_daily["day"].max().strftime("%d.%m.%Y"))
     if pd.notna(latest_source):
         st.caption("Kaggle: останній запис " + latest_source.strftime("%d.%m.%Y"))
+
+if period_mode == "Власний період" and (
+    not isinstance(date_range, tuple) or len(date_range) != 2
+):
+    st.info("Оберіть другу дату, щоб показати результати за власний період.")
+    st.stop()
 
 if isinstance(date_range, tuple) and len(date_range) == 2:
     start_day = pd.Timestamp(date_range[0], tz="UTC")
@@ -449,7 +517,10 @@ viina_has_period_coverage = (
     and start_day <= viina_daily["day"].max()
     and end_day > viina_daily["day"].min()
 )
-st.subheader(f"{scope_title} · вибраний період")
+st.subheader(
+    f"{scope_title} · {start_day:%d.%m.%Y} — "
+    f"{end_day - pd.Timedelta(days=1):%d.%m.%Y}"
+)
 status_cols = st.columns(3)
 status_cols[0].metric("Записів атак · Kaggle", fmt_int(overview_daily["all_events"].sum()))
 status_cols[1].metric(
@@ -467,14 +538,15 @@ elif not viina_daily.empty and (max_day - viina_daily["day"].max()).days > 30:
 if pd.notna(generated_at):
     st.caption("Знімок даних оновлено: " + generated_at.strftime("%d.%m.%Y %H:%M UTC"))
 
+st.markdown("### Оберіть розділ")
 overview_tab, interception_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.tabs(
     [
-        "Огляд",
-        "Збиття",
-        "Області",
-        "Відсотки та оцінка",
-        "Якість даних",
-        "Модель",
+        "📈 Загальна картина",
+        "🛡️ Запуски та збиття",
+        "🗺️ Карта областей",
+        "📊 Порівняння областей",
+        "🔎 Надійність даних",
+        "⚙️ Стан моделі",
     ]
 )
 
@@ -492,51 +564,45 @@ with overview_tab:
         + "Це окреме джерело, його події не додаються до записів атак Kaggle."
     )
 
-    if selected_oblast == "Усі області":
-        current_30 = national_daily[
-            (national_daily["day"] >= max_day - pd.Timedelta(days=29))
-            & (national_daily["day"] <= max_day)
-        ].copy()
-        previous_30 = national_daily[
-            (national_daily["day"] >= max_day - pd.Timedelta(days=59))
-            & (national_daily["day"] < max_day - pd.Timedelta(days=29))
-        ].copy()
-        current_count = float(current_30["attack_records"].sum())
-        previous_count = float(previous_30["attack_records"].sum())
-    else:
-        current_30 = oblast_daily[
-            (oblast_daily["oblast"] == selected_oblast)
-            & (oblast_daily["day"] >= max_day - pd.Timedelta(days=29))
-            & (oblast_daily["day"] <= max_day)
-        ].copy()
-        previous_30 = oblast_daily[
-            (oblast_daily["oblast"] == selected_oblast)
-            & (oblast_daily["day"] >= max_day - pd.Timedelta(days=59))
-            & (oblast_daily["day"] < max_day - pd.Timedelta(days=29))
-        ].copy()
-        current_count = float(current_30["attack_events"].sum())
-        previous_count = float(previous_30["attack_events"].sum())
+    current_period = overview_daily
+    current_count = float(current_period["all_events"].sum())
+    change_pct = None
+    if period_mode != "Увесь період":
+        comparison_days = end_day - start_day
+        comparison_start = start_day - comparison_days
+        if selected_oblast == "Усі області":
+            previous_records = national_daily[
+                (national_daily["day"] >= comparison_start)
+                & (national_daily["day"] < start_day)
+            ]["attack_records"]
+        else:
+            previous_records = oblast_daily[
+                (oblast_daily["oblast"] == selected_oblast)
+                & (oblast_daily["day"] >= comparison_start)
+                & (oblast_daily["day"] < start_day)
+            ]["attack_events"]
+        previous_count = float(previous_records.sum())
+        if previous_count:
+            change_pct = (current_count - previous_count) / previous_count * 100
 
-    change_pct = (
-        (current_count - previous_count) / previous_count * 100
-        if previous_count
-        else None
-    )
-
-    st.subheader("Останні 30 днів у Kaggle")
+    st.subheader("Показники Kaggle за вибраний період")
     s1, s2, s3, s4 = st.columns(4)
     s1.metric("Записів атак", fmt_int(current_count))
     s2.metric(
-        "Зміна до попередніх 30 днів",
+        "Зміна до попереднього періоду",
         "—" if change_pct is None else fmt_pct_points(change_pct),
+        help=(
+            "Для всього періоду порівняння немає; якщо попередній такий "
+            "період не містить записів, відсоток не обчислюється."
+        ),
     )
     s3.metric(
-        "БпЛА за 30 днів",
-        fmt_int(current_30["uav_events"].sum()) if not current_30.empty else "0",
+        "Записів про БпЛА",
+        fmt_int(current_period["uav_events"].sum()) if not current_period.empty else "0",
     )
     s4.metric(
-        "Ракет за 30 днів",
-        fmt_int(current_30["missile_events"].sum()) if not current_30.empty else "0",
+        "Записів про ракети",
+        fmt_int(current_period["missile_events"].sum()) if not current_period.empty else "0",
     )
 
     st.caption(
@@ -560,7 +626,7 @@ with overview_tab:
             if source.empty:
                 fig.add_annotation(
                     text="Немає записів за вибраний період", row=row, col=1,
-                    showarrow=False, font=dict(size=15, color="#657a91"),
+                    showarrow=False, font=dict(size=17, color="#657a91"),
                 )
                 continue
             series = (
@@ -574,7 +640,7 @@ with overview_tab:
                 hovertemplate="%{x|%d.%m.%Y}<br>Записів: %{y:,.0f}<extra></extra>",
             ), row=row, col=1)
         style_chart(fig, height=510)
-        fig.update_annotations(font=dict(size=16, color="#23425e"))
+        fig.update_annotations(font=dict(size=18, color="#23425e"))
         fig.update_yaxes(title_text="Кількість", row=1, col=1)
         fig.update_yaxes(title_text="Кількість", row=2, col=1)
         fig.update_xaxes(title_text="Дата", row=2, col=1)
@@ -613,7 +679,7 @@ with overview_tab:
                 f"{fmt_pct_points(share)} · {fmt_int(count)}"
                 for share, count in zip(structure["Частка, %"], structure["Кількість"])
             ],
-            textposition="outside", textfont=dict(size=15, color="#213b55"),
+            textposition="outside", textfont=dict(size=17, color="#213b55"),
             customdata=structure["Кількість"],
             hovertemplate="%{y}<br>Частка: %{x:.1f}%<br>Записів: %{customdata:,.0f}<extra></extra>",
         ))
@@ -629,7 +695,7 @@ with overview_tab:
             structure_table,
             width="stretch",
             hide_index=True,
-            row_height=42,
+            row_height=48,
         )
 
 with interception_tab:
@@ -690,7 +756,7 @@ with interception_tab:
                     orientation="h", marker=dict(color=color, line_width=0),
                     customdata=by_type[column],
                     text=[fmt_pct_points(value) if value >= 7 else "" for value in shares],
-                    textfont=dict(size=15, color="#ffffff"),
+                    textfont=dict(size=17, color="#ffffff"),
                     textposition="inside",
                     hovertemplate="%{y}<br>" + title
                     + ": %{customdata:,.0f} (%{x:.1f}%)<extra></extra>",
@@ -708,7 +774,7 @@ with interception_tab:
                 "launched": "Запущено", "intercepted": "Збито",
                 "not_confirmed_intercepted": "Без підтвердженого збиття",
             })
-            st.dataframe(table, width="stretch", hide_index=True, row_height=42)
+            st.dataframe(table, width="stretch", hide_index=True, row_height=48)
 
         st.subheader("Як змінювалися повідомлені кількості")
         period_days = (end_day - start_day).days
@@ -750,7 +816,7 @@ with interception_tab:
             })
             st.dataframe(
                 daily_table[["Дата", "Тип", "Запущено", "Збито", "Без підтвердженого збиття"]],
-                width="stretch", hide_index=True, height=360, row_height=42,
+                width="stretch", hide_index=True, height=390, row_height=48,
             )
 
         if not interception_coverage.empty:
@@ -847,9 +913,9 @@ with regions_tab:
                 clickmode="event+select",
                 height=680,
                 paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Arial, sans-serif", size=15, color="#233c58"),
-                hoverlabel=dict(font_size=15, bgcolor="#ffffff"),
-                coloraxis_colorbar=dict(tickfont_size=14, title_font_size=14),
+                font=dict(family="Arial, sans-serif", size=17, color="#233c58"),
+                hoverlabel=dict(font_size=17, bgcolor="#ffffff"),
+                coloraxis_colorbar=dict(tickfont_size=16, title_font_size=16),
             )
             map_event = st.plotly_chart(
                 map_fig,
@@ -902,7 +968,7 @@ with regions_tab:
             on_select="rerun",
             selection_mode="single-row",
             height=620,
-            row_height=42,
+            row_height=48,
         )
 
     table_oblast: str | None = None
@@ -980,7 +1046,7 @@ with regions_tab:
                     detail_fig.add_annotation(
                         text="Немає записів за вибраний період",
                         row=row_number, col=1, showarrow=False,
-                        font=dict(size=15, color="#657a91"),
+                        font=dict(size=17, color="#657a91"),
                     )
                     continue
                 series = frame.set_index("day")[column].resample(
@@ -1035,7 +1101,7 @@ with risk_tab:
             orientation="h", marker=dict(color=colors, line_width=0),
             customdata=ranked[["kaggle_events", "viina_events", "alert_count"]],
             text=[fmt_pct_points(value) for value in ranked["consensus_share_pct"]],
-            textposition="outside", textfont=dict(size=14, color="#243e58"),
+            textposition="outside", textfont=dict(size=16, color="#243e58"),
             hovertemplate=(
                 "%{y}<br>Узгоджена частка: %{x:.1f}%<br>"
                 "Kaggle: %{customdata[0]:,.0f}<br>VIINA: %{customdata[1]:,.0f}<br>"
@@ -1103,7 +1169,7 @@ with quality_tab:
         pd.DataFrame(quality_rows),
         width="stretch",
         hide_index=True,
-        row_height=42,
+        row_height=48,
     )
 
 with ml_tab:
@@ -1194,7 +1260,7 @@ with ml_tab:
             pd.DataFrame(comparison_rows),
             width="stretch",
             hide_index=True,
-            row_height=42,
+            row_height=48,
         )
 
     st.caption(
