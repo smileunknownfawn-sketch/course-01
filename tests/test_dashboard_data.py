@@ -81,6 +81,7 @@ def test_dashboard_snapshot_writes_metadata_and_tables(tmp_path):
     assert (tmp_path / "oblast_daily.csv").exists()
     assert (tmp_path / "oblast_summary.csv").exists()
     assert (tmp_path / "weapon_summary.csv").exists()
+    assert (tmp_path / "health_history.csv").exists()
 
     stored = json.loads((tmp_path / "metadata.json").read_text(encoding="utf-8"))
     assert stored["quality"]["region_coverage_rate"] == 1.0
