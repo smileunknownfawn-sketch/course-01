@@ -27,3 +27,8 @@ Thumbs.db
 models/*.joblib
 models/*.json
 !models/.gitkeep
+
+# Small aggregated dashboard snapshots are intentionally versioned.
+!data/dashboard/*.csv
+!data/dashboard/*.json
+!data/dashboard/.gitkeep
