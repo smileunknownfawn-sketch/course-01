@@ -76,6 +76,60 @@ def build_dashboard_tables(
         .sort_values("day")
     )
 
+    # Interception numbers are national source reports. A region attached to an
+    # attack does not establish where an individual weapon was intercepted or hit.
+    # Only rows with a valid launched/destroyed pair enter the comparison.
+    interception = weapons.merge(
+        attacks[["attack_id", "day", "attack_type"]],
+        on="attack_id",
+        how="inner",
+        validate="many_to_one",
+    )
+    interception["category"] = (
+        interception["category"] if "category" in interception.columns
+        else interception["attack_type"]
+    )
+    interception["category"] = interception["category"].fillna(
+        interception["attack_type"]
+    )
+    interception["quantity"] = pd.to_numeric(
+        interception["quantity"], errors="coerce"
+    )
+    interception["intercepted_quantity"] = pd.to_numeric(
+        interception["intercepted_quantity"], errors="coerce"
+    )
+    valid_pair = (
+        interception["quantity"].notna()
+        & interception["intercepted_quantity"].notna()
+        & interception["quantity"].ge(0)
+        & interception["intercepted_quantity"].ge(0)
+        & interception["intercepted_quantity"].le(interception["quantity"])
+        & interception["quantity"].mod(1).eq(0)
+        & interception["intercepted_quantity"].mod(1).eq(0)
+    )
+    valid_pair = valid_pair.fillna(False)
+    comparable = interception[valid_pair].copy()
+    comparable["not_confirmed_intercepted"] = (
+        comparable["quantity"] - comparable["intercepted_quantity"]
+    )
+    interception_by_type_daily = (
+        comparable.groupby(["day", "category"], as_index=False)
+        .agg(
+            launched=("quantity", "sum"),
+            intercepted=("intercepted_quantity", "sum"),
+            not_confirmed_intercepted=("not_confirmed_intercepted", "sum"),
+            source_records=("attack_id", "size"),
+        )
+        .sort_values(["day", "category"])
+    )
+    interception_coverage = pd.DataFrame([
+        {
+            "total_records": len(interception),
+            "comparable_records": int(valid_pair.sum()),
+            "excluded_records": int((~valid_pair).sum()),
+        }
+    ])
+
     # Regional views count event-region links, never duplicate weapon quantities.
     regional = attack_regions[["attack_id", "oblast"]].merge(
         attacks[["attack_id", "day", "attack_type"]],
@@ -128,6 +182,8 @@ def build_dashboard_tables(
         "oblast_daily": oblast_daily,
         "oblast_summary": oblast_summary,
         "weapon_summary": weapon_summary,
+        "interception_by_type_daily": interception_by_type_daily,
+        "interception_coverage": interception_coverage,
     }
 
 

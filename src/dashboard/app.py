@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 from src.analysis.consensus import build_oblast_consensus
@@ -52,6 +53,11 @@ ATTACK_TYPE_UA = {
     "combined": "Комбіновані",
     "unknown": "Невідомо",
 }
+
+px.defaults.template = "plotly_white"
+px.defaults.color_discrete_sequence = [
+    "#187caf", "#e59a3b", "#237c83", "#8258a6", "#5c7392"
+]
 
 QUALITY_LABELS_UA = {
     "attack_rows": "Записів атак",
@@ -106,6 +112,40 @@ st.set_page_config(
     page_title="Історична аналітика атак по Україні",
     page_icon="📊",
     layout="wide",
+)
+
+st.markdown(
+    """<style>
+    :root { color-scheme: light; }
+    [data-testid="stAppViewContainer"] { background: #f3f7fc; color: #17283c; }
+    [data-testid="stHeader"] { background: #f3f7fc; }
+    .block-container { max-width: 1420px; padding-top: 1.25rem; padding-bottom: 3rem; }
+    h1, h2, h3 { color: #123253; letter-spacing: -.025em; }
+    h1 { font-size: clamp(2rem, 3vw, 2.75rem); padding-bottom: .2rem; }
+    h3 { padding-top: .75rem; }
+    [data-testid="stMetric"] {
+      background: #fff; border: 1px solid #dce6f1; border-radius: 16px;
+      padding: 1.05rem 1.2rem; box-shadow: 0 5px 22px rgba(22,53,85,.045);
+      min-height: 112px;
+    }
+    [data-testid="stMetricLabel"] { color: #536981; font-weight: 600; }
+    [data-testid="stMetricValue"] { color: #113e68; font-weight: 750; letter-spacing: -.035em; }
+    [data-testid="stSidebar"] { background: #eaf1fa; border-right: 1px solid #d9e4f0; }
+    .stTabs [data-baseweb="tab-list"] { gap: .35rem; border-bottom: 1px solid #d6e3f0; }
+    .stTabs [data-baseweb="tab"] { color: #48617c; font-weight: 650; padding: .75rem 1rem; }
+    .stTabs [aria-selected="true"] { color: #075a97; border-bottom: 3px solid #1484bf; }
+    [data-testid="stPlotlyChart"], [data-testid="stDataFrame"] {
+      background: #fff; border: 1px solid #dce6f1; border-radius: 16px;
+      padding: .65rem; overflow: hidden;
+    }
+    [data-testid="stCaptionContainer"] { color: #526981; }
+    @media (max-width: 760px) {
+      .block-container { padding: .85rem .75rem 2rem; }
+      [data-testid="stMetric"] { min-height: 92px; padding: .8rem; }
+      .stTabs [data-baseweb="tab"] { padding: .65rem .75rem; }
+    }
+    </style>""",
+    unsafe_allow_html=True,
 )
 
 
@@ -216,6 +256,8 @@ oblast_summary = parse_dates(
     load_csv("oblast_summary.csv"), ["first_seen", "last_seen"]
 )
 weapon_summary = load_csv("weapon_summary.csv")
+interception_daily = parse_dates(load_csv("interception_by_type_daily.csv"), ["day"])
+interception_coverage = load_csv("interception_coverage.csv")
 viina_daily = parse_dates(load_csv("viina_oblast_daily.csv"), ["day"])
 siren_daily = parse_dates(load_csv("siren_oblast_daily.csv"), ["day"])
 
@@ -342,6 +384,11 @@ period_siren_daily = siren_daily[
     & (siren_daily["day"] < end_day)
 ].copy() if not siren_daily.empty else siren_daily.copy()
 
+period_interception = interception_daily[
+    (interception_daily["day"] >= start_day)
+    & (interception_daily["day"] < end_day)
+].copy() if not interception_daily.empty else interception_daily.copy()
+
 if selected_oblast == "Усі області":
     overview_daily = filtered_national.copy()
     overview_daily["all_events"] = overview_daily["attack_records"]
@@ -367,9 +414,10 @@ status_cols[2].metric("Тривог · окремий контекст", fmt_int
 if pd.notna(generated_at):
     st.caption("Знімок даних оновлено: " + generated_at.strftime("%d.%m.%Y %H:%M UTC"))
 
-overview_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.tabs(
+overview_tab, interception_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.tabs(
     [
         "Огляд",
+        "Збиття",
         "Області",
         "Відсотки та оцінка",
         "Якість даних",
@@ -418,9 +466,9 @@ with overview_tab:
         else None
     )
 
-    st.subheader("Що змінило за останні 30 днів")
+    st.subheader("Останні 30 днів у Kaggle")
     s1, s2, s3, s4 = st.columns(4)
-    s1.metric("Історичних подій", fmt_int(current_count))
+    s1.metric("Записів атак", fmt_int(current_count))
     s2.metric(
         "Зміна до попередніх 30 днів",
         "—" if change_pct is None else fmt_pct_points(change_pct),
@@ -438,42 +486,6 @@ with overview_tab:
         "Показники описують історичні записи у відкритому джерелі "
         "та не є прогнозом майбутніх подій."
     )
-
-    k1, k2, k3, k4 = st.columns(4)
-    if selected_oblast == "Усі області":
-        k1.metric(
-            "Записів атак за період",
-            fmt_int(overview_daily["all_events"].sum()),
-        )
-        k2.metric(
-            "Повідомлено запущено",
-            fmt_int(overview_daily["launched_reported"].sum()),
-        )
-        k3.metric(
-            "Повідомлено перехоплено",
-            fmt_int(overview_daily["intercepted_reported"].sum()),
-        )
-        launched = overview_daily["launched_reported"].sum()
-        intercepted = overview_daily["intercepted_reported"].sum()
-        interception_rate = intercepted / launched if launched else None
-        k4.metric("Частка перехоплень", fmt_pct(interception_rate))
-    else:
-        k1.metric(
-            "Історичних подій за період",
-            fmt_int(overview_daily["all_events"].sum()),
-        )
-        k2.metric(
-            "Днів із подіями",
-            fmt_int(overview_daily["day"].nunique()),
-        )
-        k3.metric(
-            "Подій БпЛА",
-            fmt_int(overview_daily["uav_events"].sum()),
-        )
-        k4.metric(
-            "Ракетних подій",
-            fmt_int(overview_daily["missile_events"].sum()),
-        )
 
     st.subheader("Динаміка історичних записів")
     if overview_daily.empty and source_viina.empty:
@@ -506,6 +518,11 @@ with overview_tab:
             y="count",
             color="series",
             labels={"day": "Дата", "count": "Кількість", "series": "Категорія"},
+        )
+        fig.update_layout(
+            height=330, margin=dict(l=12, r=12, t=20, b=20),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="h", y=1.18),
         )
         st.plotly_chart(fig, width="stretch")
 
@@ -545,6 +562,7 @@ with overview_tab:
         structure_chart.update_layout(
             margin=dict(l=10, r=28, t=10, b=10),
             height=max(210, 65 * len(structure) + 70),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         )
         st.plotly_chart(structure_chart, width="stretch")
 
@@ -555,6 +573,129 @@ with overview_tab:
             width="stretch",
             hide_index=True,
         )
+
+with interception_tab:
+    st.subheader("Запущено та заявлено збитими · Україна")
+    if selected_oblast != "Усі області":
+        st.info(
+            "Тут показано загальноукраїнські підсумки за вибраний період. "
+            "Джерело не вказує область збиття кожної цілі, тому ці числа "
+            "не приписуються вибраній області."
+        )
+    st.caption(
+        "Порівнюються лише записи Kaggle, у яких наведено обидві коректні "
+        "кількості: запущено та збито."
+    )
+
+    if period_interception.empty:
+        st.info("За цей період немає повних пар даних про запуски та збиття.")
+    else:
+        launched = period_interception["launched"].sum()
+        intercepted = period_interception["intercepted"].sum()
+        not_confirmed = period_interception["not_confirmed_intercepted"].sum()
+        metric_cols = st.columns(4)
+        metric_cols[0].metric("Повідомлено запущено", fmt_int(launched))
+        metric_cols[1].metric("Заявлено збито", fmt_int(intercepted))
+        metric_cols[2].metric("Без підтвердженого збиття", fmt_int(not_confirmed))
+        metric_cols[3].metric("Частка заявлених збиттів", fmt_pct(intercepted / launched) if launched else "—")
+
+        st.warning(
+            "«Без підтвердженого збиття» = запущено − збито. "
+            "Це не кількість влучань: джерело не містить перевірених даних "
+            "про наслідок кожної незбитої цілі."
+        )
+
+        by_type = (
+            period_interception.groupby("category", as_index=False)
+            .agg(
+                launched=("launched", "sum"),
+                intercepted=("intercepted", "sum"),
+                not_confirmed_intercepted=("not_confirmed_intercepted", "sum"),
+                source_records=("source_records", "sum"),
+            )
+        )
+        by_type = by_type[by_type["launched"] > 0].copy()
+        by_type["Тип"] = by_type["category"].map(ATTACK_TYPE_UA).fillna("Інші")
+        by_type["Частка збиття, %"] = by_type["intercepted"] / by_type["launched"] * 100
+        by_type = by_type.sort_values("launched", ascending=True)
+
+        if not by_type.empty:
+            st.subheader("Розподіл за типом цілей")
+            bar = go.Figure()
+            for column, title, color in (
+                ("intercepted", "Заявлено збито", "#1787a1"),
+                ("not_confirmed_intercepted", "Без підтвердженого збиття", "#e9a24b"),
+            ):
+                bar.add_trace(go.Bar(
+                    y=by_type["Тип"], x=by_type[column], name=title,
+                    orientation="h", marker_color=color,
+                    text=[fmt_int(value) if value else "" for value in by_type[column]],
+                    textposition="inside",
+                    hovertemplate="%{y}<br>" + title + ": %{x:,.0f}<extra></extra>",
+                ))
+            bar.update_layout(
+                barmode="stack", template="plotly_white", height=max(260, 100 * len(by_type) + 90),
+                margin=dict(l=10, r=20, t=24, b=35),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#26445e", size=14), legend=dict(orientation="h", y=1.22),
+                xaxis_title="Кількість цілей", yaxis_title=None,
+            )
+            st.plotly_chart(bar, width="stretch")
+
+            table = by_type[["Тип", "launched", "intercepted", "not_confirmed_intercepted", "Частка збиття, %"]].copy()
+            table["Частка збиття, %"] = table["Частка збиття, %"].map(fmt_pct_points)
+            table = table.rename(columns={
+                "launched": "Запущено", "intercepted": "Збито",
+                "not_confirmed_intercepted": "Без підтвердженого збиття",
+            })
+            st.dataframe(table, width="stretch", hide_index=True)
+
+        st.subheader("Як змінювалися повідомлені кількості")
+        period_days = (end_day - start_day).days
+        frequency = "MS" if period_days > 180 else "W-MON" if period_days > 45 else "D"
+        history = (
+            period_interception.set_index("day")
+            .resample(frequency)[["launched", "intercepted"]]
+            .sum()
+            .reset_index()
+        )
+        history = history.melt(id_vars="day", var_name="Показник", value_name="Кількість")
+        history["Показник"] = history["Показник"].map({"launched": "Запущено", "intercepted": "Збито"})
+        history_chart = px.line(
+            history, x="day", y="Кількість", color="Показник", markers=period_days <= 45,
+            labels={"day": "Дата"}, color_discrete_map={"Запущено": "#176ea8", "Збито": "#1787a1"},
+        )
+        history_chart.update_layout(
+            height=330, margin=dict(l=12, r=12, t=18, b=20),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="h", y=1.14),
+        )
+        st.plotly_chart(history_chart, width="stretch")
+
+        with st.expander("Переглянути записи за датою і типом"):
+            daily_table = period_interception[[
+                "day", "category", "launched", "intercepted", "not_confirmed_intercepted"
+            ]].copy().sort_values("day", ascending=False)
+            daily_table["Дата"] = daily_table["day"].dt.strftime("%d.%m.%Y")
+            daily_table["Тип"] = daily_table["category"].map(ATTACK_TYPE_UA).fillna("Інші")
+            daily_table = daily_table.rename(columns={
+                "launched": "Запущено", "intercepted": "Збито",
+                "not_confirmed_intercepted": "Без підтвердженого збиття",
+            })
+            st.dataframe(
+                daily_table[["Дата", "Тип", "Запущено", "Збито", "Без підтвердженого збиття"]],
+                width="stretch", hide_index=True, height=360,
+            )
+
+        if not interception_coverage.empty:
+            coverage = interception_coverage.iloc[0]
+            st.caption(
+                "Повнота всієї історичної вибірки: "
+                f"{fmt_int(coverage['comparable_records'])} із {fmt_int(coverage['total_records'])} "
+                "записів мають порівнювані значення; "
+                f"{fmt_int(coverage['excluded_records'])} неповних або некоректних "
+                "записів не враховано в показниках збиття."
+            )
 
 with regions_tab:
     st.subheader("Карта України за областями")
@@ -610,6 +751,7 @@ with regions_tab:
                 locations="oblast",
                 featureidkey="properties.name",
                 color="consensus_share_pct",
+                color_continuous_scale=["#e3eff9", "#72afcf", "#145c90"],
                 custom_data=["oblast"],
                 hover_name="oblast",
                 hover_data={
@@ -637,6 +779,7 @@ with regions_tab:
                 coloraxis_colorbar_title="Консенсус, %",
                 clickmode="event+select",
                 height=680,
+                paper_bgcolor="rgba(0,0,0,0)",
             )
             map_event = st.plotly_chart(
                 map_fig,
