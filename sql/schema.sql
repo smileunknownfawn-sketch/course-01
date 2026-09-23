@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS sources (
 
 CREATE TABLE IF NOT EXISTS geography (
     geo_id BIGSERIAL PRIMARY KEY,
-    oblast TEXT NOT NULL,
+    oblast TEXT,
     raion TEXT,
     settlement TEXT,
     latitude DOUBLE PRECISION,
@@ -36,6 +36,14 @@ CREATE TABLE IF NOT EXISTS attacks (
     confidence TEXT NOT NULL DEFAULT 'reported',
     description TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- One normalized event may affect several administrative regions.
+CREATE TABLE IF NOT EXISTS attack_regions (
+    attack_id BIGINT NOT NULL REFERENCES attacks(attack_id) ON DELETE CASCADE,
+    geo_id BIGINT REFERENCES geography(geo_id),
+    oblast TEXT NOT NULL,
+    PRIMARY KEY (attack_id, oblast)
 );
 
 -- One normalized event may be supported by several independent sources.
@@ -83,6 +91,7 @@ CREATE TABLE IF NOT EXISTS alerts (
 CREATE INDEX IF NOT EXISTS idx_attacks_started_at ON attacks(started_at);
 CREATE INDEX IF NOT EXISTS idx_attacks_oblast ON attacks(oblast);
 CREATE INDEX IF NOT EXISTS idx_attacks_type ON attacks(attack_type);
+CREATE INDEX IF NOT EXISTS idx_attack_regions_oblast ON attack_regions(oblast);
 CREATE INDEX IF NOT EXISTS idx_attack_sources_source_id ON attack_sources(source_id);
 CREATE INDEX IF NOT EXISTS idx_weapons_attack_id ON weapons(attack_id);
 CREATE INDEX IF NOT EXISTS idx_alerts_started_at ON alerts(started_at);
