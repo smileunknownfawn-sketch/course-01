@@ -42,6 +42,13 @@ def main() -> None:
     attacks = pd.read_csv(attacks_path)
     attack_regions = pd.read_csv(regions_path)
 
+    quality_path = PROCESSED_DIR / "data_quality_report.json"
+    quality = (
+        json.loads(quality_path.read_text(encoding="utf-8"))
+        if quality_path.exists()
+        else {}
+    )
+
     dataset = build_daily_oblast_dataset(attacks, attack_regions)
     dataset_path = PROCESSED_DIR / "ml_daily_oblast.csv"
     dataset.to_csv(dataset_path, index=False)
@@ -80,6 +87,13 @@ def main() -> None:
         "candidate_metrics": asdict(candidate_metrics),
         "baseline_metrics": asdict(baseline_metrics),
         "beats_baseline": baseline_pass,
+        "model_ready_for_serving": bool(
+            quality.get("model_ready_for_serving", False) and baseline_pass
+        ),
+        "model_readiness_reasons": quality.get(
+            "model_readiness_reasons",
+            ["Data-quality readiness report was unavailable"],
+        ),
         "champion_metrics_on_same_holdout": (
             asdict(champion_metrics) if champion_metrics is not None else None
         ),
