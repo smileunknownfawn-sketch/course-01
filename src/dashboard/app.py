@@ -260,12 +260,31 @@ max_day = national_daily["day"].max()
 
 with st.sidebar:
     st.header("Фільтри")
-    date_range = st.date_input(
-        "Період",
-        value=(min_day.date(), max_day.date()),
-        min_value=min_day.date(),
-        max_value=max_day.date(),
+    period_mode = st.selectbox(
+        "Швидкий період",
+        ["Останні 30 днів", "Останні 90 днів", "Увесь період", "Власний період"],
+        index=2,
     )
+
+    if period_mode == "Останні 30 днів":
+        date_range = (
+            max(min_day, max_day - pd.Timedelta(days=29)).date(),
+            max_day.date(),
+        )
+    elif period_mode == "Останні 90 днів":
+        date_range = (
+            max(min_day, max_day - pd.Timedelta(days=89)).date(),
+            max_day.date(),
+        )
+    elif period_mode == "Власний період":
+        date_range = st.date_input(
+            "Період",
+            value=(min_day.date(), max_day.date()),
+            min_value=min_day.date(),
+            max_value=max_day.date(),
+        )
+    else:
+        date_range = (min_day.date(), max_day.date())
 
     oblast_options = ["Усі області"]
     if not oblast_summary.empty:
