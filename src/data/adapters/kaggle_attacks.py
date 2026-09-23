@@ -102,13 +102,13 @@ def transform_kaggle_attacks(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     source = normalize_source_columns(df)
     validate_source_columns(source)
 
-    source["started_at"] = pd.to_datetime(source["time_start"], utc=True, errors="coerce")
+    source["started_at"] = pd.to_datetime(source["time_start"], utc=True, errors="coerce", format="mixed")
     if source["started_at"].isna().any():
         bad_rows = source.index[source["started_at"].isna()].tolist()
         raise ValueError(f"Invalid time_start values at rows: {bad_rows[:10]}")
 
     if "time_end" in source.columns:
-        source["ended_at"] = pd.to_datetime(source["time_end"], utc=True, errors="coerce")
+        source["ended_at"] = pd.to_datetime(source["time_end"], utc=True, errors="coerce", format="mixed")
     else:
         source["ended_at"] = pd.NaT
 
