@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-23T10:45:26.924772+00:00",
+  "generated_at": "2026-09-23T10:50:38.577316+00:00",
   "latest_source_event_at": "2026-09-18T18:00:00+00:00",
   "source_name": "Massive Missile Attacks on Ukraine (Kaggle / piterfm)",
   "source_scope": "Historical public aggregate data",
@@ -43,7 +43,7 @@
       "rows": 2736,
       "positives": 56,
       "positive_rate": 0.02046783625730994,
-      "brier_score": 0.018535582685623116,
+      "brier_score": 0.018535582685625742,
       "average_precision": 0.19195773368081262,
       "roc_auc": 0.8666044776119403,
       "balanced_accuracy": 0.5
@@ -75,5 +75,62 @@
     "promoted": false,
     "decision_reason": "Candidate did not exceed promotion thresholds"
   },
+  "technical_readiness_score": 59,
+  "improvement_recommendations": [
+    {
+      "priority": 95,
+      "level": "Високий",
+      "area": "Дані",
+      "title": "Збільшити регіональне покриття",
+      "finding": "Область визначена лише для 6.6% історичних записів.",
+      "action": "Підключити додаткове історичне джерело з надійним полем області та не вважати нерозмічені події негативними прикладами.",
+      "automatic": false
+    },
+    {
+      "priority": 92,
+      "level": "Високий",
+      "area": "Дані",
+      "title": "Покращити свіжу регіональну розмітку",
+      "finding": "За останні 90 днів регіональне покриття становить 8.1%.",
+      "action": "Пріоритетно додавати джерела, що стабільно містять область для нових подій.",
+      "automatic": false
+    },
+    {
+      "priority": 88,
+      "level": "Високий",
+      "area": "Публікація",
+      "title": "Не показувати модель як готовий прогноз",
+      "finding": "Поточні пороги готовності не пройдені.",
+      "action": "Показувати лише історичні частки та експериментальні метрики, доки якість даних не стане достатньою.",
+      "automatic": true
+    },
+    {
+      "priority": 75,
+      "level": "Середній",
+      "area": "Нормалізація",
+      "title": "Розібрати нерозпізнані регіони",
+      "finding": "Залишилося 5 значень, які не можна однозначно прив'язати до області.",
+      "action": "Автоматично формувати список невідомих значень для ручної перевірки; додавати alias лише коли відповідність однозначна.",
+      "automatic": true
+    },
+    {
+      "priority": 68,
+      "level": "Середній",
+      "area": "Модель",
+      "title": "Підсилити корисні ознаки",
+      "finding": "Модель знаходить сигнал, але якість ранжування ще обмежена.",
+      "action": "Додати безпечні історичні ознаки: частоту за 7/30/90 днів, типи засобів та інтервал від попередньої події.",
+      "automatic": false
+    },
+    {
+      "priority": 55,
+      "level": "Середній",
+      "area": "Якість",
+      "title": "Зменшити кількість попереджень",
+      "finding": "Звіт якості містить 6 попереджень.",
+      "action": "Групувати попередження за типом і відстежувати їх динаміку між циклами.",
+      "automatic": true
+    }
+  ],
   "safety_scope": "Historical aggregated oblast-level analysis only; no live routes, exact targets, launch coordinates, or operational timing."
 }
