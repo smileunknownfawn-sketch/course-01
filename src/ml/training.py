@@ -93,7 +93,6 @@ def build_model() -> Pipeline:
 
     classifier = LogisticRegression(
         max_iter=2000,
-        class_weight="balanced",
         random_state=42,
     )
 
@@ -143,8 +142,62 @@ def evaluate_model(model: Pipeline, test: pd.DataFrame) -> ModelMetrics:
     )
 
 
+def evaluate_prevalence_baseline(
+    train: pd.DataFrame,
+    test: pd.DataFrame,
+) -> ModelMetrics:
+    """Evaluate a constant-probability baseline using training prevalence."""
+    if train.empty or test.empty:
+        raise ValueError("Train and test datasets must be non-empty")
+
+    y_true = test[TARGET_COLUMN].astype("int8")
+    probability = float(train[TARGET_COLUMN].mean())
+    probabilities = np.full(len(test), probability, dtype=float)
+    predictions = (probabilities >= 0.5).astype("int8")
+
+    average_precision: float | None
+    roc_auc: float | None
+    if y_true.nunique() > 1:
+        average_precision = float(average_precision_score(y_true, probabilities))
+        roc_auc = 0.5
+    else:
+        average_precision = None
+        roc_auc = None
+
+    return ModelMetrics(
+        rows=len(test),
+        positives=int(y_true.sum()),
+        positive_rate=float(y_true.mean()),
+        brier_score=float(brier_score_loss(y_true, probabilities)),
+        average_precision=average_precision,
+        roc_auc=roc_auc,
+        balanced_accuracy=float(balanced_accuracy_score(y_true, predictions)),
+    )
+
+
 def metrics_to_dict(metrics: ModelMetrics) -> dict[str, object]:
     return asdict(metrics)
+
+
+def beats_baseline(
+    candidate: ModelMetrics,
+    baseline: ModelMetrics,
+) -> tuple[bool, str]:
+    """Require a candidate to outperform a simple prevalence baseline."""
+    candidate_ap = candidate.average_precision
+    baseline_ap = baseline.average_precision
+
+    if candidate.brier_score >= baseline.brier_score:
+        return False, "Candidate probability calibration is worse than baseline"
+
+    if (
+        candidate_ap is not None
+        and baseline_ap is not None
+        and candidate_ap <= baseline_ap
+    ):
+        return False, "Candidate ranking quality does not exceed baseline"
+
+    return True, "Candidate exceeds prevalence baseline"
 
 
 def should_promote(
