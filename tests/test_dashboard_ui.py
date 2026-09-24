@@ -53,7 +53,12 @@ def test_period_and_oblast_controls_update_the_summary():
         regional["day"].ge(since) & regional["oblast"].eq("Одеська область"),
         "attack_events",
     ].sum())
-    assert _metric(app, "Записів атак · Kaggle") == _format_count(expected_regional)
+    assert _metric(app, "Регіонально позначених записів · Kaggle") == _format_count(expected_regional)
+    assert _metric(app, "Днів із повітряними тривогами") != "0"
+    assert any(
+        "не загальна кількість атак" in warning.value
+        for warning in app.warning
+    )
 
 
 def test_hero_asset_is_wide_and_optimized():
