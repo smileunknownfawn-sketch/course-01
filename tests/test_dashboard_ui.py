@@ -32,6 +32,7 @@ def test_period_and_oblast_controls_update_the_summary():
         "source_coverage",
         "interception_composition",
         "region_coverage_quality",
+        "alert_calendar",
     }.issubset(chart_by_key)
     assert _metric(app, "Kaggle · записів з областю") != "—"
     assert _metric(app, "VIINA · повітряних інцидентів") != "—"
@@ -55,6 +56,7 @@ def test_period_and_oblast_controls_update_the_summary():
     ].sum())
     assert _metric(app, "Регіонально позначених записів · Kaggle") == _format_count(expected_regional)
     assert _metric(app, "Днів із повітряними тривогами") != "0"
+    assert _metric(app, "Індекс зафіксованої активності · не прогноз").endswith("/ 100")
     assert any(
         "не загальна кількість атак" in warning.value
         for warning in app.warning
@@ -62,9 +64,15 @@ def test_period_and_oblast_controls_update_the_summary():
 
 
 def test_hero_asset_is_wide_and_optimized():
-    hero = ROOT / "assets/dashboard-hero-v3.webp"
-    assert hero.exists()
-    assert hero.stat().st_size < 150_000
-    with Image.open(hero) as image:
-        assert image.width >= 1800
-        assert image.width / image.height >= 2.5
+    assets = {
+        "dashboard-hero-v3.webp": (1800, 2.5),
+        "source-verification.webp": (1600, 1.7),
+        "regional-activity-calendar.webp": (1600, 1.7),
+    }
+    for filename, (minimum_width, minimum_ratio) in assets.items():
+        asset = ROOT / "assets" / filename
+        assert asset.exists()
+        assert asset.stat().st_size < 150_000
+        with Image.open(asset) as image:
+            assert image.width >= minimum_width
+            assert image.width / image.height >= minimum_ratio

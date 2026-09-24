@@ -18,6 +18,8 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 DASHBOARD_DIR = ROOT_DIR / "data" / "dashboard"
 GEOJSON_PATH = ROOT_DIR / "data" / "geo" / "ukraine_admin1.geojson"
 HERO_IMAGE_PATH = ROOT_DIR / "assets" / "dashboard-hero-v3.webp"
+SOURCES_IMAGE_PATH = ROOT_DIR / "assets" / "source-verification.webp"
+ACTIVITY_IMAGE_PATH = ROOT_DIR / "assets" / "regional-activity-calendar.webp"
 
 UKRAINE_ADMIN1_FALLBACK = [
     "Автономна Республіка Крим",
@@ -363,6 +365,22 @@ def chart_frequency_label(start: pd.Timestamp, end: pd.Timestamp) -> str:
     return {"D": "днями", "W-MON": "тижнями", "MS": "місяцями"}[frequency]
 
 
+def pct_change(current: float, previous: float) -> float | None:
+    if previous <= 0:
+        return None
+    return (current - previous) / previous * 100
+
+
+def activity_level(index: float) -> str:
+    if index >= 75:
+        return "дуже висока"
+    if index >= 50:
+        return "висока"
+    if index >= 25:
+        return "помірна"
+    return "низька"
+
+
 def style_chart(fig: go.Figure, *, height: int) -> go.Figure:
     fig.update_layout(
         template="plotly_white", height=height,
@@ -700,6 +718,42 @@ if is_regional_view:
         f"{fmt_int(filtered_national['attack_records'].sum())} записів по Україні, "
         "але джерело не забезпечує повної регіональної прив'язки."
     )
+    activity_preview = build_oblast_consensus(
+        sorted(known_oblasts), period_oblast_daily, period_viina_daily, period_siren_daily
+    )
+    selected_preview = activity_preview[
+        activity_preview["oblast"] == selected_oblast
+    ]
+    period_day_count = max(1, int((end_day - start_day).days))
+    alert_day_rate = min(100.0, alert_days / period_day_count * 100)
+    if not selected_preview.empty and len(activity_preview) > 1:
+        preview_rank = int(selected_preview.index[0]) + 1
+        historical_percentile = 100 * (
+            1 - (preview_rank - 1) / (len(activity_preview) - 1)
+        )
+    else:
+        preview_rank = 0
+        historical_percentile = 0.0
+    observed_activity_index = .6 * alert_day_rate + .4 * historical_percentile
+    index_cols = st.columns(3)
+    index_cols[0].metric(
+        "Індекс зафіксованої активності · не прогноз",
+        f"{observed_activity_index:.0f} / 100",
+        help="60% — частка днів із тривогами; 40% — місце області в історичному мультиджерельному рейтингу.",
+    )
+    index_cols[1].metric(
+        "Днів із тривогами",
+        fmt_pct_points(alert_day_rate),
+        help=f"{alert_days} із {period_day_count} днів вибраного періоду.",
+    )
+    index_cols[2].metric(
+        "Повнота регіональних міток Kaggle",
+        fmt_pct(quality.get("region_coverage_rate")),
+    )
+    st.caption(
+        f"Рівень зафіксованої активності: {activity_level(observed_activity_index)}. "
+        "Це опис уже зафіксованих даних, а не ймовірність наступної атаки."
+    )
 if not viina_has_period_coverage:
     st.info("VIINA не містить даних за вибраний період. Прочерк означає відсутність даних, а не відсутність інцидентів.")
 elif not viina_daily.empty and (max_day - viina_daily["day"].max()).days > 30:
@@ -760,6 +814,9 @@ with overview_tab:
     current_period = overview_daily
     current_count = float(current_period["all_events"].sum())
     change_pct = None
+    previous_count = 0.0
+    previous_alert_count = 0.0
+    previous_alert_days = 0
     if period_mode != "Увесь період":
         comparison_days = end_day - start_day
         comparison_start = start_day - comparison_days
@@ -775,8 +832,19 @@ with overview_tab:
                 & (oblast_daily["day"] < start_day)
             ]["attack_events"]
         previous_count = float(previous_records.sum())
-        if previous_count:
-            change_pct = (current_count - previous_count) / previous_count * 100
+        change_pct = pct_change(current_count, previous_count)
+        previous_sirens = siren_daily[
+            (siren_daily["day"] >= comparison_start)
+            & (siren_daily["day"] < start_day)
+        ].copy()
+        if is_regional_view:
+            previous_sirens = previous_sirens[
+                previous_sirens["oblast"] == selected_oblast
+            ]
+        previous_alert_count = float(previous_sirens["alert_count"].sum())
+        previous_alert_days = int(
+            previous_sirens.loc[previous_sirens["alert_count"] > 0, "day"].nunique()
+        )
 
     st.subheader("Показники Kaggle за вибраний період")
     s1, s2, s3, s4 = st.columns(4)
@@ -805,6 +873,105 @@ with overview_tab:
         "Показники описують історичні записи у відкритому джерелі "
         "та не є прогнозом майбутніх подій."
     )
+
+    if period_mode != "Увесь період":
+        st.subheader("Що змінилося проти попереднього такого самого періоду")
+        comparison = pd.DataFrame([
+            {
+                "Показник": "Регіонально позначені записи Kaggle" if is_regional_view else "Записи Kaggle",
+                "Поточний період": int(current_count),
+                "Попередній період": int(previous_count),
+                "Зміна": pct_change(current_count, previous_count),
+            },
+            {
+                "Показник": "Днів із повітряними тривогами",
+                "Поточний період": alert_days,
+                "Попередній період": previous_alert_days,
+                "Зміна": pct_change(alert_days, previous_alert_days),
+            },
+            {
+                "Показник": "Кількість повітряних тривог",
+                "Поточний період": int(scope_sirens["alert_count"].sum()) if not scope_sirens.empty else 0,
+                "Попередній період": int(previous_alert_count),
+                "Зміна": pct_change(
+                    float(scope_sirens["alert_count"].sum()) if not scope_sirens.empty else 0,
+                    previous_alert_count,
+                ),
+            },
+        ])
+        comparison["Зміна"] = comparison["Зміна"].map(
+            lambda value: "—" if pd.isna(value) else fmt_pct_points(value)
+        )
+        st.dataframe(comparison, width="stretch", hide_index=True, row_height=48)
+
+    st.subheader("Календар повітряних тривог")
+    st.caption(
+        "Показано до 90 останніх днів обраного періоду. Колір означає "
+        "кількість тривог за день, а не кількість ударів."
+    )
+    if ACTIVITY_IMAGE_PATH.exists():
+        st.image(
+            str(ACTIVITY_IMAGE_PATH), width="stretch",
+            caption="Декоративна ілюстрація календарної аналітики; фактичні значення наведено нижче.",
+        )
+    calendar_end = end_day - pd.Timedelta(days=1)
+    calendar_start = max(start_day, calendar_end - pd.Timedelta(days=89))
+    calendar_source = scope_sirens[
+        (scope_sirens["day"] >= calendar_start)
+        & (scope_sirens["day"] <= calendar_end)
+    ].copy()
+    calendar_days = pd.DataFrame({
+        "day": pd.date_range(calendar_start, calendar_end, freq="D", tz="UTC")
+    })
+    if not calendar_source.empty:
+        calendar_source = calendar_source.groupby("day", as_index=False).agg(
+            alert_count=("alert_count", "sum"),
+            alert_minutes=("alert_minutes", "sum"),
+        )
+    else:
+        calendar_source = pd.DataFrame(columns=["day", "alert_count", "alert_minutes"])
+    calendar_days = calendar_days.merge(calendar_source, on="day", how="left").fillna(0)
+    calendar_days["week"] = (
+        calendar_days["day"] - pd.to_timedelta(calendar_days["day"].dt.weekday, unit="D")
+    )
+    calendar_days["weekday"] = calendar_days["day"].dt.weekday
+    weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
+    week_values = sorted(calendar_days["week"].unique())
+    z = []
+    custom = []
+    for weekday in range(7):
+        row_values = []
+        row_custom = []
+        for week in week_values:
+            cell = calendar_days[
+                (calendar_days["weekday"] == weekday) & (calendar_days["week"] == week)
+            ]
+            if cell.empty:
+                row_values.append(None)
+                row_custom.append(["", 0])
+            else:
+                item = cell.iloc[0]
+                row_values.append(float(item["alert_count"]))
+                row_custom.append([
+                    item["day"].strftime("%d.%m.%Y"),
+                    round(float(item["alert_minutes"]) / 60, 1),
+                ])
+        z.append(row_values)
+        custom.append(row_custom)
+    calendar_chart = go.Figure(go.Heatmap(
+        z=z, x=week_values, y=weekdays, customdata=custom,
+        colorscale=[[0, "#edf4f9"], [.35, "#8fc4da"], [1, "#145d8d"]],
+        xgap=4, ygap=4, colorbar=dict(title="Тривог", tickfont_size=15),
+        hovertemplate=(
+            "%{customdata[0]}<br>Тривог: %{z:.0f}<br>"
+            "Тривалість: %{customdata[1]:.1f} год.<extra></extra>"
+        ),
+    ))
+    style_chart(calendar_chart, height=330)
+    calendar_chart.update_layout(margin=dict(l=25, r=30, t=20, b=45))
+    calendar_chart.update_xaxes(title_text="Тиждень", tickformat="%d.%m", dtick="M1")
+    calendar_chart.update_yaxes(title_text=None, autorange="reversed", showgrid=False)
+    st.plotly_chart(calendar_chart, width="stretch", key="alert_calendar", config={"displayModeBar": False})
 
     st.subheader("Як змінювалася кількість записів")
     if overview_daily.empty and source_viina.empty:
@@ -1111,6 +1278,33 @@ with regions_tab:
     ]:
         consensus[column] = consensus[column].fillna(0).astype("int64")
 
+    map_mode = st.radio(
+        "Що показати кольором на карті",
+        [
+            "Узгоджена історична частка",
+            "Регіональні записи Kaggle",
+            "Інциденти VIINA",
+            "Повітряні тривоги",
+        ],
+        horizontal=True,
+        help="Тривоги показуються окремим режимом і не вважаються підтвердженими ударами.",
+    )
+    map_modes = {
+        "Узгоджена історична частка": (
+            "consensus_share_pct", "Узгоджена частка, %", ["#e3eff9", "#72afcf", "#145c90"]
+        ),
+        "Регіональні записи Kaggle": (
+            "kaggle_events", "Записів Kaggle", ["#eef4fb", "#74a9d2", "#174f80"]
+        ),
+        "Інциденти VIINA": (
+            "viina_events", "Інцидентів VIINA", ["#e9f6f3", "#62b8ad", "#126d68"]
+        ),
+        "Повітряні тривоги": (
+            "alert_count", "Повітряних тривог", ["#fff5df", "#efbb64", "#b86d18"]
+        ),
+    }
+    map_color, map_color_title, map_scale = map_modes[map_mode]
+
     left, right = st.columns([1.55, 1.0])
     clicked_oblast: str | None = None
 
@@ -1121,8 +1315,8 @@ with regions_tab:
                 geojson=geojson,
                 locations="oblast",
                 featureidkey="properties.name",
-                color="consensus_share_pct",
-                color_continuous_scale=["#e3eff9", "#72afcf", "#145c90"],
+                color=map_color,
+                color_continuous_scale=map_scale,
                 custom_data=["oblast"],
                 hover_name="oblast",
                 hover_data={
@@ -1148,7 +1342,7 @@ with regions_tab:
             )
             map_fig.update_layout(
                 margin=dict(l=0, r=0, t=10, b=0),
-                coloraxis_colorbar_title="Консенсус, %",
+                coloraxis_colorbar_title=map_color_title,
                 clickmode="event+select",
                 height=680,
                 paper_bgcolor="rgba(0,0,0,0)",
@@ -1411,6 +1605,45 @@ with risk_tab:
             width="stretch", hide_index=True, row_height=48,
         )
 
+        st.subheader("Порівняйте області між собою")
+        default_comparison = risk_summary["oblast"].head(4).tolist()
+        if is_regional_view and selected_oblast not in default_comparison:
+            default_comparison = [selected_oblast, *default_comparison[:3]]
+        comparison_oblasts = st.multiselect(
+            "Оберіть до п’яти областей",
+            options=risk_summary["oblast"].tolist(),
+            default=default_comparison,
+            max_selections=5,
+        )
+        comparison_regions = risk_summary[
+            risk_summary["oblast"].isin(comparison_oblasts)
+        ].copy()
+        if not comparison_regions.empty:
+            alert_total = float(risk_summary["alert_count"].sum())
+            comparison_regions["alert_share_pct"] = (
+                comparison_regions["alert_count"] / alert_total * 100
+                if alert_total else 0
+            )
+            compare_chart = go.Figure()
+            for column, title, color in (
+                ("kaggle_share_pct", "Kaggle · частка", "#147bb3"),
+                ("viina_share_pct", "VIINA · частка", "#168c84"),
+                ("alert_share_pct", "Тривоги · контекст", "#e4a04b"),
+            ):
+                compare_chart.add_trace(go.Bar(
+                    x=comparison_regions["oblast"],
+                    y=comparison_regions[column],
+                    name=title, marker_color=color,
+                    text=comparison_regions[column].map(fmt_pct_points),
+                    textposition="outside",
+                    hovertemplate="%{x}<br>" + title + ": %{y:.1f}%<extra></extra>",
+                ))
+            style_chart(compare_chart, height=430)
+            compare_chart.update_layout(barmode="group", bargap=.24, bargroupgap=.08)
+            compare_chart.update_xaxes(title_text=None, tickangle=-18)
+            compare_chart.update_yaxes(title_text="Частка всередині джерела, %")
+            st.plotly_chart(compare_chart, width="stretch", config={"displayModeBar": False})
+
         st.subheader("Які типи подій зафіксували джерела")
         if selected_oblast == "Усі області":
             kaggle_types = {
@@ -1491,6 +1724,12 @@ with risk_tab:
 
 with quality_tab:
     st.subheader("Контроль якості даних")
+
+    if SOURCES_IMAGE_PATH.exists():
+        st.image(
+            str(SOURCES_IMAGE_PATH), width="stretch",
+            caption="Декоративна ілюстрація перевірки джерел; точні показники наведено нижче.",
+        )
 
     q1, q2, q3, q4 = st.columns(4)
     q1.metric("Критичні помилки", fmt_int(quality.get("blocking_errors")))

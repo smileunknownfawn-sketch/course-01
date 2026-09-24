@@ -108,6 +108,12 @@ regional-coverage threshold chart, and a step-by-step learning-cycle diagram.
 Decorative imagery is explicitly separated from factual maps and charts; the
 oblast map continues to use the repository's GeoJSON boundaries.
 
+The dashboard also provides a 90-day air-alert calendar, equal-period
+comparisons, selectable map layers, side-by-side oblast comparison, and a
+transparent observed-activity index that is explicitly not a forecast. Two
+additional optimized illustrations introduce the calendar and source-quality
+sections without presenting decorative artwork as evidence.
+
 See `docs/self_learning.md` for the full lifecycle.
 
 ## Tests
