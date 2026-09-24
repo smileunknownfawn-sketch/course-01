@@ -34,7 +34,7 @@ def test_period_and_oblast_controls_update_the_summary():
         "region_coverage_quality",
     }.issubset(chart_by_key)
     coverage_spec = json.loads(chart_by_key["source_coverage"].proto.spec)
-    assert coverage_spec["layout"]["font"]["size"] >= 17
+    assert coverage_spec["layout"]["font"]["size"] >= 18
     assert any("2025-08-27" in str(trace["x"]) for trace in coverage_spec["data"])
 
     app.selectbox[0].set_value("Останні 30 днів").run()
