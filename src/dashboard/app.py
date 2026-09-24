@@ -711,7 +711,7 @@ overview_tab, interception_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.
         "📈 Загальна картина",
         "🛡️ Запуски та збиття",
         "🗺️ Карта областей",
-        "📊 Порівняння областей",
+        "📊 Історична активність",
         "🔎 Надійність даних",
         "⚙️ Стан моделі",
     ]
@@ -1283,11 +1283,11 @@ with regions_tab:
         )
 
 with risk_tab:
-    st.subheader("Узгоджений відсотковий розподіл за областями")
+    st.subheader("Конкретна статистика за областями та типами")
     st.caption(
-        "Цей показник усереднює нормалізовані історичні частки незалежних "
-        "джерел атак/повітряних інцидентів. Тривоги показуються окремо "
-        "та не рахуються як факт обстрілу."
+        "Підсумкова історична частка — середнє частки області у Kaggle та "
+        "частки області у VIINA за вибраний період. Сирі кількості не "
+        "додаються, бо джерела по-різному визначають і збирають події."
     )
 
     risk_summary = build_oblast_consensus(
@@ -1297,7 +1297,27 @@ with risk_tab:
         period_siren_daily,
     )
 
-    if not risk_summary.empty:
+    if not risk_summary.empty and risk_summary["consensus_share_pct"].sum() > 0:
+        leader = risk_summary.iloc[0]
+        summary_cols = st.columns(4)
+        summary_cols[0].metric(
+            "Найбільша історична частка",
+            str(leader["oblast"]).replace(" область", ""),
+        )
+        summary_cols[1].metric(
+            "Частка області-лідера",
+            fmt_pct_points(leader["consensus_share_pct"]),
+        )
+        summary_cols[2].metric(
+            "Kaggle · записів з областю",
+            fmt_int(risk_summary["kaggle_events"].sum()),
+        )
+        summary_cols[3].metric(
+            "VIINA · повітряних інцидентів",
+            fmt_int(risk_summary["viina_events"].sum()),
+        )
+
+        st.subheader("Рейтинг областей за історичною часткою")
         ranked = risk_summary.head(15).sort_values("consensus_share_pct")
         max_share = float(ranked["consensus_share_pct"].max())
         colors = [
@@ -1327,10 +1347,114 @@ with risk_tab:
         risk_chart.update_yaxes(title_text=None, showgrid=False)
         st.plotly_chart(risk_chart, width="stretch", config={"displayModeBar": False})
 
-    st.info(
-        "Це історична мультиджерельна аналітика, а не твердження про місце "
-        "майбутнього удару. Модельний прогноз не публікується, доки якість "
-        "регіональної розмітки не проходить задані пороги."
+        exact_table = risk_summary.head(15)[[
+            "oblast", "consensus_share_pct", "kaggle_events",
+            "kaggle_share_pct", "viina_events", "viina_share_pct",
+            "alert_count", "evidence_sources", "active_attack_sources",
+        ]].copy()
+        exact_table.insert(0, "Місце", range(1, len(exact_table) + 1))
+        exact_table["consensus_share_pct"] = exact_table["consensus_share_pct"].map(fmt_pct_points)
+        exact_table["kaggle_share_pct"] = exact_table["kaggle_share_pct"].map(fmt_pct_points)
+        exact_table["viina_share_pct"] = exact_table["viina_share_pct"].map(fmt_pct_points)
+        exact_table["Підтвердження"] = exact_table.apply(
+            lambda row: f"{int(row['evidence_sources'])} із {int(row['active_attack_sources'])} джерел",
+            axis=1,
+        )
+        exact_table = exact_table.rename(columns={
+            "oblast": "Область",
+            "consensus_share_pct": "Підсумкова частка",
+            "kaggle_events": "Kaggle · подій",
+            "kaggle_share_pct": "Kaggle · частка",
+            "viina_events": "VIINA · подій",
+            "viina_share_pct": "VIINA · частка",
+            "alert_count": "Тривог · контекст",
+        })
+        st.dataframe(
+            exact_table[[
+                "Місце", "Область", "Підсумкова частка",
+                "Kaggle · подій", "Kaggle · частка",
+                "VIINA · подій", "VIINA · частка",
+                "Тривог · контекст", "Підтвердження",
+            ]],
+            width="stretch", hide_index=True, row_height=48,
+        )
+
+        st.subheader("Які типи подій зафіксували джерела")
+        if selected_oblast == "Усі області":
+            kaggle_types = {
+                "БпЛА": int(filtered_national["uav_events"].sum()),
+                "Ракети": int(filtered_national["missile_events"].sum()),
+                "Керовані авіабомби": int(filtered_national["guided_bomb_events"].sum()),
+            }
+            viina_type_frame = period_viina_daily
+        else:
+            selected_kaggle = period_oblast_daily[
+                period_oblast_daily["oblast"] == selected_oblast
+            ]
+            kaggle_types = {
+                "БпЛА": int(selected_kaggle["uav_events"].sum()),
+                "Ракети": int(selected_kaggle["missile_events"].sum()),
+                "Керовані авіабомби": int(selected_kaggle["guided_bomb_events"].sum()),
+            }
+            viina_type_frame = period_viina_daily[
+                period_viina_daily["oblast"] == selected_oblast
+            ] if not period_viina_daily.empty else period_viina_daily
+
+        type_left, type_right = st.columns(2, gap="large")
+        with type_left:
+            st.markdown("#### Kaggle · записи атак")
+            kaggle_type_table = pd.DataFrame({
+                "Тип": list(kaggle_types.keys()),
+                "Кількість": list(kaggle_types.values()),
+            }).sort_values("Кількість")
+            kaggle_type_chart = go.Figure(go.Bar(
+                x=kaggle_type_table["Кількість"], y=kaggle_type_table["Тип"],
+                orientation="h", marker_color=["#147bb3", "#2d91bd", "#e4a04b"],
+                text=kaggle_type_table["Кількість"].map(fmt_int),
+                textposition="outside",
+                hovertemplate="%{y}: %{x:,.0f} записів<extra></extra>",
+            ))
+            style_chart(kaggle_type_chart, height=300)
+            kaggle_type_chart.update_layout(showlegend=False, margin=dict(l=18, r=60, t=15, b=42))
+            kaggle_type_chart.update_xaxes(title_text="Кількість записів")
+            kaggle_type_chart.update_yaxes(title_text=None, showgrid=False)
+            st.plotly_chart(kaggle_type_chart, width="stretch", config={"displayModeBar": False})
+
+        with type_right:
+            st.markdown("#### VIINA · категорії інцидентів")
+            viina_types = {
+                "БпЛА": int(viina_type_frame["viina_uav_events"].sum()) if not viina_type_frame.empty else 0,
+                "Повітряні удари": int(viina_type_frame["viina_airstrike_events"].sum()) if not viina_type_frame.empty else 0,
+            }
+            viina_type_table = pd.DataFrame({
+                "Тип": list(viina_types.keys()),
+                "Кількість": list(viina_types.values()),
+            }).sort_values("Кількість")
+            viina_type_chart = go.Figure(go.Bar(
+                x=viina_type_table["Кількість"], y=viina_type_table["Тип"],
+                orientation="h", marker_color=["#168c84", "#58aaa3"],
+                text=viina_type_table["Кількість"].map(fmt_int),
+                textposition="outside",
+                hovertemplate="%{y}: %{x:,.0f} інцидентів<extra></extra>",
+            ))
+            style_chart(viina_type_chart, height=300)
+            viina_type_chart.update_layout(showlegend=False, margin=dict(l=18, r=60, t=15, b=42))
+            viina_type_chart.update_xaxes(title_text="Кількість інцидентів")
+            viina_type_chart.update_yaxes(title_text=None, showgrid=False)
+            st.plotly_chart(viina_type_chart, width="stretch", config={"displayModeBar": False})
+
+        st.caption(
+            "Типи з Kaggle та VIINA показані окремо: одна подія VIINA може мати "
+            "кілька категорій, тому ці стовпчики не слід додавати між собою."
+        )
+    else:
+        st.warning("За вибраний період немає достатніх регіональних записів для рейтингу.")
+
+    st.warning(
+        "Ці відсотки показують розподіл уже зафіксованих історичних подій, а не "
+        "ймовірність наступного удару. Надійний прогноз майбутньої області або "
+        "типу засобу ураження зараз неможливий: лише 6,6% записів Kaggle мають "
+        "регіональну мітку, а VIINA не містить нових записів після 27.08.2025."
     )
 
 with quality_tab:
