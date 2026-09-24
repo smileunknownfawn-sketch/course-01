@@ -57,6 +57,12 @@ def test_period_and_oblast_controls_update_the_summary():
     assert _metric(app, "Регіонально позначених записів · Kaggle") == _format_count(expected_regional)
     assert _metric(app, "Днів із повітряними тривогами") != "0"
     assert _metric(app, "Індекс зафіксованої активності · не прогноз").endswith("/ 100")
+    assert _metric(app, "Підтверджених публікацій") == "1"
+    assert _metric(app, "Фотографій") == "2"
+    assert any(
+        "Удари реактивними БпЛА спричинили масштабні пожежі" in item.value
+        for item in app.markdown
+    )
     assert any(
         "не загальна кількість атак" in warning.value
         for warning in app.warning

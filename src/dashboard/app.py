@@ -466,6 +466,7 @@ interception_daily = parse_dates(load_csv("interception_by_type_daily.csv"), ["d
 interception_coverage = load_csv("interception_coverage.csv")
 viina_daily = parse_dates(load_csv("viina_oblast_daily.csv"), ["day"])
 siren_daily = parse_dates(load_csv("siren_oblast_daily.csv"), ["day"])
+verified_events = parse_dates(load_csv("verified_events.csv"), ["date"])
 
 if "attack_type" in weapon_summary.columns:
     weapon_summary["Категорія"] = (
@@ -1507,6 +1508,84 @@ with regions_tab:
             "кількості не додаються. Консенсус — середнє нормалізованих "
             "часток кожного незалежного джерела."
         )
+
+        st.divider()
+        st.subheader(f"Підтверджені події за останні 30 днів · {detail_oblast}")
+        st.caption(
+            "Лише ретроспективні повідомлення офіційних органів. Фото можуть "
+            "показувати пожежі та руйнування, але не містять зображень загиблих "
+            "або впізнаваних постраждалих."
+        )
+        events_end = (
+            generated_at.normalize()
+            if pd.notna(generated_at) else pd.Timestamp.now(tz="UTC").normalize()
+        )
+        events_start = events_end - pd.Timedelta(days=29)
+        regional_events = verified_events[
+            verified_events["oblast"].eq(detail_oblast)
+            & verified_events["date"].between(events_start, events_end)
+            & verified_events["is_verified"].astype(str).str.lower().eq("true")
+        ].copy() if not verified_events.empty else verified_events.copy()
+        regional_events = regional_events.sort_values("date", ascending=False)
+
+        if regional_events.empty:
+            st.info(
+                "У поточному знімку немає перевіреної офіційної публікації "
+                "з безпечною фотографією за останні 30 днів. Це не означає, "
+                "що атак не було."
+            )
+        else:
+            event_photo_count = int(
+                regional_events["image_urls"].fillna("").map(
+                    lambda value: len([url for url in str(value).split("|") if url])
+                ).sum()
+            )
+            event_sources = int(regional_events["source_name"].nunique())
+            event_metrics = st.columns(3)
+            event_metrics[0].metric("Підтверджених публікацій", fmt_int(len(regional_events)))
+            event_metrics[1].metric("Офіційних джерел", fmt_int(event_sources))
+            event_metrics[2].metric("Фотографій", fmt_int(event_photo_count))
+
+            for _, event in regional_events.iterrows():
+                with st.container(border=True):
+                    st.markdown(
+                        f"### {event['date']:%d.%m.%Y} · {event['title']}"
+                    )
+                    st.markdown(f"**Типи ураження:** {event['attack_types']}")
+                    st.write(str(event["summary"]))
+                    st.markdown(f"**Пошкодження:** {event['damage']}")
+                    st.markdown(f"**Людські наслідки:** {event['casualties']}")
+
+                    image_urls = [
+                        url for url in str(event.get("image_urls") or "").split("|")
+                        if url and url.lower() != "nan"
+                    ]
+                    image_alts = [
+                        alt for alt in str(event.get("image_alts") or "").split("|")
+                        if alt and alt.lower() != "nan"
+                    ]
+                    if image_urls:
+                        photo_columns = st.columns(min(3, len(image_urls)), gap="medium")
+                        for photo_index, image_url in enumerate(image_urls[:3]):
+                            with photo_columns[photo_index]:
+                                caption = (
+                                    image_alts[photo_index]
+                                    if photo_index < len(image_alts)
+                                    else "Фото з офіційного джерела"
+                                )
+                                st.image(image_url, width="stretch", caption=caption)
+
+                    source_left, source_right = st.columns([2, 1])
+                    source_left.caption(
+                        f"Джерело: {event['source_name']} · "
+                        f"ліцензія/умови: {event['image_license']}"
+                    )
+                    with source_right:
+                        st.link_button(
+                            "Відкрити офіційне повідомлення",
+                            str(event["source_url"]),
+                            width="stretch",
+                        )
 
 with risk_tab:
     st.subheader("Конкретна статистика за областями та типами")

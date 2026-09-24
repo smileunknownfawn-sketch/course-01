@@ -114,6 +114,13 @@ transparent observed-activity index that is explicitly not a forecast. Two
 additional optimized illustrations introduce the calendar and source-quality
 sections without presenting decorative artwork as evidence.
 
+When an oblast is selected, the map section also shows curated official event
+cards from the last 30 days. Each card includes the date, reported weapon
+categories, damage and casualty summary, up to three non-graphic official
+photos, attribution, and a direct source link. Missing cards are explicitly
+described as missing verified publications, not as evidence that no attack
+occurred. See `docs/verified_events.md` for curation and safety rules.
+
 See `docs/self_learning.md` for the full lifecycle.
 
 ## Tests
