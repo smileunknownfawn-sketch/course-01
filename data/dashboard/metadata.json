@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-23T11:14:19.480990+00:00",
+  "generated_at": "2026-09-24T10:22:50.477103+00:00",
   "latest_source_event_at": "2026-09-18T18:00:00+00:00",
   "source_name": "Massive Missile Attacks on Ukraine (Kaggle / piterfm)",
   "source_scope": "Historical public aggregate data",
@@ -137,9 +137,9 @@
       "etryvoga_volunteer": {
         "role": "air_raid_context_not_attack_labels",
         "active": true,
-        "rows": 29423,
+        "rows": 29437,
         "start": "2022-02-25 00:00:00+00:00",
-        "end": "2026-09-23 00:00:00+00:00"
+        "end": "2026-09-24 00:00:00+00:00"
       },
       "acled": {
         "role": "conflict_events_optional",
