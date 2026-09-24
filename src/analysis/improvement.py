@@ -86,6 +86,19 @@ def build_improvement_recommendations(
             True,
         )
 
+    if learning.get("status") == "blocked_unverified_outcomes":
+        unknown_rows = _as_int(learning.get("unknown_rows"))
+        add(
+            99,
+            "Високий",
+            "Дані для навчання",
+            "Підтвердити дні без атак",
+            f"Для {unknown_rows} пар область–день результат невідомий.",
+            "Додати перевірене джерело повноти спостережень із посиланням "
+            "на кожен день; до цього не навчати модель на невідомих днях.",
+            False,
+        )
+
     if coverage < 0.25:
         add(
             95,

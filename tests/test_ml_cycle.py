@@ -1,7 +1,11 @@
 import pandas as pd
+import pytest
 
 from src.ml.dataset import build_daily_oblast_dataset, chronological_split
-from src.ml.training import ModelMetrics, beats_baseline, should_promote
+from src.ml.training import (
+    ModelMetrics, beats_baseline, decide_promotion, should_promote,
+    validate_training_dataset, champion_holdout_is_clean,
+)
 
 
 def test_daily_dataset_uses_only_prior_days():
@@ -21,12 +25,52 @@ def test_daily_dataset_uses_only_prior_days():
     jan2 = dataset.loc[dataset["day"] == pd.Timestamp("2026-01-02", tz="UTC")].iloc[0]
     jan3 = dataset.loc[dataset["day"] == pd.Timestamp("2026-01-03", tz="UTC")].iloc[0]
 
-    assert jan2["target_next_24h"] == 0
+    assert pd.isna(jan2["target_next_24h"])
     assert jan2["attacks_prev_1d"] == 1
 
     assert jan3["target_next_24h"] == 1
     assert jan3["attacks_prev_1d"] == 0
     assert jan3["attacks_prev_7d"] == 1
+
+
+def test_certified_complete_day_can_be_negative_but_other_days_remain_unknown():
+    attacks = pd.DataFrame([
+        {"attack_id": 1, "started_at": "2026-01-01T10:00:00Z"},
+        {"attack_id": 2, "started_at": "2026-01-04T10:00:00Z"},
+    ])
+    regions = pd.DataFrame([
+        {"attack_id": 1, "oblast": "Одеська область"},
+        {"attack_id": 2, "oblast": "Одеська область"},
+    ])
+    observations = pd.DataFrame([
+        {"oblast": "Одеська область", "day": "2026-01-02", "observed_complete": True,
+         "source_reference": "audited-source-2026-01-02"},
+    ])
+    result = build_daily_oblast_dataset(attacks, regions, min_history_days=0,
+                                        observation_days=observations)
+    assert result.loc[result["day"].eq(pd.Timestamp("2026-01-02", tz="UTC")),
+                      "target_next_24h"].iloc[0] == 0
+    assert pd.isna(result.loc[result["day"].eq(pd.Timestamp("2026-01-03", tz="UTC")),
+                            "target_next_24h"].iloc[0])
+    assert validate_training_dataset(result)[-1] == "Target contains unverified oblast/day outcomes"
+
+
+def test_unverified_or_unreferenced_observations_cannot_create_negative_labels():
+    attacks = pd.DataFrame([
+        {"attack_id": 1, "started_at": "2026-01-01T10:00:00Z"},
+        {"attack_id": 2, "started_at": "2026-01-03T10:00:00Z"},
+    ])
+    regions = pd.DataFrame([
+        {"attack_id": i, "oblast": "Одеська область"} for i in (1, 2)
+    ])
+    for complete, reference in ((False, "source"), (True, "")):
+        observations = pd.DataFrame([{
+            "oblast": "Одеська область", "day": "2026-01-02",
+            "observed_complete": complete, "source_reference": reference,
+        }])
+        with pytest.raises(ValueError, match="complete|source reference"):
+            build_daily_oblast_dataset(attacks, regions, min_history_days=0,
+                                       observation_days=observations)
 
 
 def test_chronological_split_never_mixes_future_into_train():
@@ -41,6 +85,14 @@ def test_chronological_split_never_mixes_future_into_train():
     train, test = chronological_split(dataset, test_fraction=0.2)
 
     assert train["day"].max() < test["day"].min()
+
+
+def test_champion_cannot_be_evaluated_on_days_seen_during_training():
+    holdout = pd.Timestamp("2026-05-01", tz="UTC")
+    assert champion_holdout_is_clean({"data_end": "2026-04-30"}, holdout)
+    assert not champion_holdout_is_clean({"data_end": "2026-05-01"}, holdout)
+    assert not champion_holdout_is_clean({"data_end": "2026-05-02"}, holdout)
+    assert not champion_holdout_is_clean({}, holdout)
 
 
 def test_candidate_promotion_requires_meaningful_improvement():
@@ -107,3 +159,14 @@ def test_candidate_must_beat_prevalence_baseline():
 
     assert beats_baseline(useful, baseline)[0] is True
     assert beats_baseline(miscalibrated, baseline)[0] is False
+
+    baseline_pass, promoted, reason = decide_promotion(
+        useful, baseline, None, quality_ready=False
+    )
+    assert baseline_pass is True
+    assert promoted is False
+    assert reason == "Data-quality gate blocks promotion"
+
+    assert decide_promotion(
+        useful, baseline, None, quality_ready=True
+    )[1] is True

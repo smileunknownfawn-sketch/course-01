@@ -72,10 +72,11 @@ The project now supports a champion/challenger learning cycle (чинна мод
 ```text
 fresh historical data
   -> quality checks
-  -> leakage-safe features
-  -> train challenger
-  -> compare with champion on the same future holdout
-  -> promote only if metrics improve
+  -> oblast/day histories with unknown outcomes kept unknown
+  -> verify complete observations for negative labels
+  -> train challenger only when outcomes are verified
+  -> compare on a holdout unseen by the champion
+  -> promote only if quality and metrics pass
 ```
 
 Run locally:
@@ -87,7 +88,25 @@ python scripts/data_quality_report.py
 python scripts/self_improve.py
 ```
 
-The scheduled GitHub Actions workflow repeats this cycle weekly and preserves the current champion between runs. Raw facts are never rewritten automatically; suspicious or unmapped values are reported for review.
+The scheduled GitHub Actions workflow repeats the checks weekly. When verified
+negative outcomes are unavailable, it reports why training is blocked and
+continues to update the historical dashboard. Raw facts are never rewritten
+automatically; suspicious or unmapped values are reported for review.
+
+## Dashboard navigation
+
+Run `streamlit run streamlit_app.py`. Choose a period and oblast at the top of
+the page. The six clearly named sections show the historical overview,
+launches and reported interceptions, oblast map, oblast comparison, source
+reliability, and model status. Source dates and definitions are under
+“Джерела та дати останніх записів”. A missing source period is shown as “—”,
+not as zero incidents.
+
+The interface also includes a lightweight decorative hero image, an exact
+source-coverage timeline, a visual equation for launches/interceptions, a
+regional-coverage threshold chart, and a step-by-step learning-cycle diagram.
+Decorative imagery is explicitly separated from factual maps and charts; the
+oblast map continues to use the repository's GeoJSON boundaries.
 
 See `docs/self_learning.md` for the full lifecycle.
 

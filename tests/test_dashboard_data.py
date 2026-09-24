@@ -85,3 +85,28 @@ def test_dashboard_snapshot_writes_metadata_and_tables(tmp_path):
 
     stored = json.loads((tmp_path / "metadata.json").read_text(encoding="utf-8"))
     assert stored["quality"]["region_coverage_rate"] == 1.0
+
+
+def test_interception_counts_keep_types_separate_and_exclude_unknown_outcomes():
+    attacks = pd.DataFrame([
+        {"attack_id": 1, "started_at": "2026-01-01T10:00:00Z", "attack_type": "uav"},
+        {"attack_id": 2, "started_at": "2026-01-01T11:00:00Z", "attack_type": "missile"},
+        {"attack_id": 3, "started_at": "2026-01-01T12:00:00Z", "attack_type": "uav"},
+    ])
+    regions = pd.DataFrame([
+        {"attack_id": 1, "oblast": "Одеська область"},
+        {"attack_id": 1, "oblast": "Київська область"},
+    ])
+    weapons = pd.DataFrame([
+        {"attack_id": 1, "category": "uav", "quantity": 25, "intercepted_quantity": 10},
+        {"attack_id": 2, "category": "missile", "quantity": 3, "intercepted_quantity": 2},
+        {"attack_id": 3, "category": "uav", "quantity": 8, "intercepted_quantity": None},
+    ])
+
+    tables = build_dashboard_tables(attacks, regions, weapons)
+    by_type = tables["interception_by_type_daily"].set_index("category")
+    assert by_type.loc["uav", "launched"] == 25
+    assert by_type.loc["uav", "intercepted"] == 10
+    assert by_type.loc["uav", "not_confirmed_intercepted"] == 15
+    assert by_type.loc["missile", "launched"] == 3
+    assert tables["interception_coverage"].iloc[0]["excluded_records"] == 1

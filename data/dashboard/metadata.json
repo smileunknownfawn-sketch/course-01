@@ -35,48 +35,36 @@
     ]
   },
   "learning": {
+    "status": "blocked_unverified_outcomes",
     "data_start": "2025-02-25 00:00:00+00:00",
     "data_end": "2026-09-17 00:00:00+00:00",
-    "train_rows": 10944,
-    "test_rows": 2736,
-    "candidate_metrics": {
-      "rows": 2736,
-      "positives": 56,
-      "positive_rate": 0.02046783625730994,
-      "brier_score": 0.018535582685623116,
-      "average_precision": 0.19195773368081262,
-      "roc_auc": 0.8666044776119403,
-      "balanced_accuracy": 0.5
-    },
-    "baseline_metrics": {
-      "rows": 2736,
-      "positives": 56,
-      "positive_rate": 0.02046783625730994,
-      "brier_score": 0.023155662479480865,
-      "average_precision": 0.02046783625730994,
-      "roc_auc": 0.5,
-      "balanced_accuracy": 0.5
-    },
-    "beats_baseline": true,
+    "verified_rows": 890,
+    "unknown_rows": 12790,
+    "candidate_metrics": null,
+    "baseline_metrics": null,
+    "beats_baseline": false,
     "model_ready_for_serving": false,
+    "quality_gate_passed": false,
     "model_readiness_reasons": [
+      "Unverified oblast/day outcomes cannot be used as negative labels",
       "Overall region-label coverage is only 6.6%",
       "Recent 90-day region-label coverage is below 25%"
     ],
-    "champion_metrics_on_same_holdout": {
-      "rows": 2736,
-      "positives": 56,
-      "positive_rate": 0.02046783625730994,
-      "brier_score": 0.01853513285400878,
-      "average_precision": 0.18929029046692328,
-      "roc_auc": 0.8638192963752664,
-      "balanced_accuracy": 0.5
-    },
+    "champion_metrics_on_same_holdout": null,
     "promoted": false,
-    "decision_reason": "Candidate did not exceed promotion thresholds"
+    "decision_reason": "Training blocked: unverified oblast/day outcomes"
   },
-  "technical_readiness_score": 59,
+  "technical_readiness_score": 49,
   "improvement_recommendations": [
+    {
+      "priority": 99,
+      "level": "Високий",
+      "area": "Дані для навчання",
+      "title": "Підтвердити дні без атак",
+      "finding": "Для 12790 пар область–день результат невідомий.",
+      "action": "Додати перевірене джерело повноти спостережень із посиланням на кожен день; до цього не навчати модель на невідомих днях.",
+      "automatic": false
+    },
     {
       "priority": 95,
       "level": "Високий",
@@ -96,6 +84,15 @@
       "automatic": false
     },
     {
+      "priority": 90,
+      "level": "Високий",
+      "area": "Модель",
+      "title": "Модель не перевершує базовий рівень",
+      "finding": "Кандидат не показав переваги над простою базовою моделлю.",
+      "action": "Не публікувати модельну оцінку; спочатку покращити дані та ознаки.",
+      "automatic": true
+    },
+    {
       "priority": 88,
       "level": "Високий",
       "area": "Публікація",
@@ -112,15 +109,6 @@
       "finding": "Залишилося 5 значень, які не можна однозначно прив'язати до області.",
       "action": "Автоматично формувати список невідомих значень для ручної перевірки; додавати alias лише коли відповідність однозначна.",
       "automatic": true
-    },
-    {
-      "priority": 68,
-      "level": "Середній",
-      "area": "Модель",
-      "title": "Підсилити корисні ознаки",
-      "finding": "Модель знаходить сигнал, але якість ранжування ще обмежена.",
-      "action": "Додати безпечні історичні ознаки: частоту за 7/30/90 днів, типи засобів та інтервал від попередньої події.",
-      "automatic": false
     },
     {
       "priority": 55,
