@@ -33,6 +33,9 @@ def test_period_and_oblast_controls_update_the_summary():
         "interception_composition",
         "region_coverage_quality",
     }.issubset(chart_by_key)
+    assert _metric(app, "Kaggle · записів з областю") != "—"
+    assert _metric(app, "VIINA · повітряних інцидентів") != "—"
+    assert _metric(app, "Частка області-лідера").endswith("%")
     coverage_spec = json.loads(chart_by_key["source_coverage"].proto.spec)
     assert coverage_spec["layout"]["font"]["size"] >= 18
     assert any("2025-08-27" in str(trace["x"]) for trace in coverage_spec["data"])
