@@ -667,13 +667,39 @@ st.subheader(
     f"{scope_title} · {start_day:%d.%m.%Y} — "
     f"{end_day - pd.Timedelta(days=1):%d.%m.%Y}"
 )
-status_cols = st.columns(3)
-status_cols[0].metric("Записів атак · Kaggle", fmt_int(overview_daily["all_events"].sum()))
+is_regional_view = selected_oblast != "Усі області"
+kaggle_scope_label = (
+    "Регіонально позначених записів · Kaggle"
+    if is_regional_view else "Записів атак · Kaggle"
+)
+alert_days = (
+    int(scope_sirens.loc[scope_sirens["alert_count"] > 0, "day"].nunique())
+    if not scope_sirens.empty else 0
+)
+alert_hours = (
+    float(scope_sirens["alert_minutes"].sum()) / 60
+    if not scope_sirens.empty and "alert_minutes" in scope_sirens else 0
+)
+status_cols = st.columns(4)
+status_cols[0].metric(kaggle_scope_label, fmt_int(overview_daily["all_events"].sum()))
 status_cols[1].metric(
     "Повітряних інцидентів · VIINA",
     fmt_int(scope_viina["viina_events"].sum()) if viina_has_period_coverage else "—",
 )
-status_cols[2].metric("Тривог · окремий контекст", fmt_int(scope_sirens["alert_count"].sum()) if not scope_sirens.empty else "0")
+status_cols[2].metric("Днів із повітряними тривогами", fmt_int(alert_days))
+status_cols[3].metric(
+    "Тривог · окремий контекст",
+    fmt_int(scope_sirens["alert_count"].sum()) if not scope_sirens.empty else "0",
+    help=f"Сумарна тривалість за вибраний період: {fmt_int(alert_hours)} год.",
+)
+if is_regional_view:
+    st.warning(
+        f"{fmt_int(overview_daily['all_events'].sum())} — це не загальна кількість "
+        f"атак на {selected_oblast}. Це лише записи Kaggle, де область була явно "
+        f"зазначена. Загалом за цей період у Kaggle є "
+        f"{fmt_int(filtered_national['attack_records'].sum())} записів по Україні, "
+        "але джерело не забезпечує повної регіональної прив'язки."
+    )
 if not viina_has_period_coverage:
     st.info("VIINA не містить даних за вибраний період. Прочерк означає відсутність даних, а не відсутність інцидентів.")
 elif not viina_daily.empty and (max_day - viina_daily["day"].max()).days > 30:
@@ -754,7 +780,10 @@ with overview_tab:
 
     st.subheader("Показники Kaggle за вибраний період")
     s1, s2, s3, s4 = st.columns(4)
-    s1.metric("Записів атак", fmt_int(current_count))
+    s1.metric(
+        "Регіонально позначених записів" if is_regional_view else "Записів атак",
+        fmt_int(current_count),
+    )
     s2.metric(
         "Зміна до попереднього періоду",
         "—" if change_pct is None else fmt_pct_points(change_pct),
@@ -818,7 +847,10 @@ with overview_tab:
         )
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
-    st.subheader("Структура подій за типом")
+    st.subheader(
+        "Типи регіонально позначених записів Kaggle"
+        if is_regional_view else "Структура записів за типом"
+    )
     structure = pd.DataFrame(
         {
             "Категорія": ["БпЛА", "Ракети", "Керовані авіабомби"],
@@ -1102,7 +1134,7 @@ with regions_tab:
                 },
                 labels={
                     "consensus_share_pct": "Узгоджена історична частка, %",
-                    "kaggle_events": "Записів атак (Kaggle)",
+                    "kaggle_events": "Регіонально позначених записів (Kaggle)",
                     "viina_events": "Повітряних інцидентів (VIINA)",
                     "alert_count": "Повітряних тривог",
                     "evidence_sources": "Джерел з подіями",
@@ -1211,14 +1243,14 @@ with regions_tab:
                 "Узгоджена історична частка",
                 fmt_pct_points(row["consensus_share_pct"]),
             )
-            d2.metric("Записів атак (Kaggle)", fmt_int(row["kaggle_events"]))
+            d2.metric("Регіонально позначених записів (Kaggle)", fmt_int(row["kaggle_events"]))
             d3.metric("Інцидентів (VIINA)", fmt_int(row["viina_events"]))
             d4.metric("Повітряних тривог", fmt_int(row["alert_count"]))
 
             d5, d6, d7, d8 = st.columns(4)
             d5.metric("Днів із записами атак", fmt_int(row["active_days"]))
-            d6.metric("Подій БпЛА", fmt_int(row["uav_events"]))
-            d7.metric("Ракетних подій", fmt_int(row["missile_events"]))
+            d6.metric("Записів про БпЛА", fmt_int(row["uav_events"]))
+            d7.metric("Записів про ракети", fmt_int(row["missile_events"]))
             d8.metric(
                 "Джерел із подіями",
                 f"{fmt_int(row['evidence_sources'])} / {fmt_int(row['active_attack_sources'])}",
