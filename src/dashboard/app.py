@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from html import escape
 from pathlib import Path
 
 import pandas as pd
@@ -16,6 +17,7 @@ from src.analysis.consensus import build_oblast_consensus
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DASHBOARD_DIR = ROOT_DIR / "data" / "dashboard"
 GEOJSON_PATH = ROOT_DIR / "data" / "geo" / "ukraine_admin1.geojson"
+HERO_IMAGE_PATH = ROOT_DIR / "assets" / "dashboard-hero-v3.webp"
 
 UKRAINE_ADMIN1_FALLBACK = [
     "Автономна Республіка Крим",
@@ -125,19 +127,23 @@ st.set_page_config(
 st.markdown(
     """<style>
     :root { color-scheme: light; }
-    [data-testid="stAppViewContainer"] { background: #f3f7fc; color: #17283c; }
-    [data-testid="stHeader"] { background: #f3f7fc; }
+    [data-testid="stAppViewContainer"] {
+      background: linear-gradient(180deg, #edf5fb 0, #f7f9fc 520px, #f3f7fc 100%);
+      color: #17283c;
+    }
+    [data-testid="stHeader"] { background: rgba(243,247,252,.88); backdrop-filter: blur(12px); }
     .block-container { max-width: 1480px; padding-top: 1.35rem; padding-bottom: 3rem; }
     h1, h2, h3 { color: #123253; letter-spacing: -.025em; line-height: 1.2; }
     [data-testid="stMarkdownContainer"] h2 { font-size: clamp(1.7rem, 2.1vw, 2.15rem); }
     [data-testid="stMarkdownContainer"] h3 { font-size: clamp(1.35rem, 1.7vw, 1.7rem); padding-top: .7rem; }
     .dashboard-hero {
-      text-align: center; padding: 2.45rem 1.5rem 2.15rem; margin-bottom: 1.45rem;
-      border: 1px solid #cfdfed; border-radius: 24px;
-      background: linear-gradient(125deg, #e0f1fb 0%, #f5f9ff 60%, #e9f5f1 100%);
+      text-align: center; padding: 2.55rem 1.5rem 2.25rem; margin-bottom: .8rem;
+      border: 1px solid #caddec; border-radius: 26px 26px 12px 12px;
+      background: linear-gradient(125deg, rgba(224,241,251,.98), rgba(251,253,255,.98) 62%, rgba(233,245,241,.98));
+      box-shadow: 0 14px 45px rgba(19,66,103,.09);
     }
     .dashboard-hero .eyebrow {
-      color: #126d85; font-size: 1rem; font-weight: 800;
+      color: #126d85; font-size: 1.05rem; font-weight: 800;
       letter-spacing: .11em; text-transform: uppercase;
     }
     .dashboard-hero h1 {
@@ -150,13 +156,30 @@ st.markdown(
       color: #35516c; font-size: clamp(1.07rem, 1.55vw, 1.3rem);
       line-height: 1.55;
     }
+    [data-testid="stImage"] {
+      margin-bottom: 1.15rem;
+      border: 1px solid #caddec; border-radius: 12px 12px 24px 24px;
+      overflow: hidden; box-shadow: 0 14px 45px rgba(19,66,103,.09);
+    }
+    [data-testid="stImage"] img { display: block; }
+    .selection-strip {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: .65rem;
+      margin: .3rem 0 1.35rem;
+    }
+    .selection-chip {
+      display: inline-flex; align-items: center; gap: .45rem;
+      padding: .5rem .82rem; border-radius: 999px; background: #fff;
+      color: #294965; font-size: 1.08rem; font-weight: 700;
+      border: 1px solid #d4e3ef; box-shadow: 0 3px 12px rgba(20,62,94,.05);
+    }
+    .selection-chip b { color: #0f6d9d; }
     [data-testid="stMetric"] {
       background: #fff; border: 1px solid #dce6f1; border-radius: 16px;
       padding: 1.1rem 1.25rem; box-shadow: 0 5px 22px rgba(22,53,85,.045);
       min-height: 125px;
     }
     [data-testid="stMetricLabel"] { color: #536981; font-weight: 600; }
-    [data-testid="stMetricLabel"] p { font-size: 1.08rem !important; line-height: 1.45; }
+    [data-testid="stMetricLabel"] p { font-size: 1.12rem !important; line-height: 1.45; }
     [data-testid="stMetricValue"] { color: #113e68; font-weight: 750; letter-spacing: -.035em; }
     [data-testid="stMetricValue"] div { font-size: clamp(1.8rem, 2.25vw, 2.55rem); }
     .stTabs [data-baseweb="tab-list"] {
@@ -185,8 +208,40 @@ st.markdown(
       background: #fff; border: 1px solid #dce6f1; border-radius: 16px;
       padding: .65rem; overflow: hidden;
     }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+      background: rgba(255,255,255,.86); border-color: #d7e4ef !important;
+      border-radius: 18px; box-shadow: 0 7px 28px rgba(20,62,94,.055);
+    }
+    .visual-equation {
+      display: grid; grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: stretch; gap: .7rem; margin: .8rem 0 1.25rem;
+    }
+    .equation-card {
+      display: flex; flex-direction: column; justify-content: center;
+      min-height: 118px; padding: 1rem; text-align: center;
+      background: #fff; border: 1px solid #d7e4ef; border-radius: 16px;
+    }
+    .equation-value { color: #123f69; font-size: clamp(1.8rem, 2.7vw, 2.65rem); font-weight: 800; }
+    .equation-label { color: #536981; font-size: 1.08rem; line-height: 1.35; }
+    .equation-sign { align-self: center; color: #6c8095; font-size: 2rem; font-weight: 800; }
+    .process-flow {
+      display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: .65rem; margin: 1rem 0 1.25rem;
+    }
+    .process-step {
+      position: relative; min-height: 132px; padding: 1rem;
+      background: #fff; border: 1px solid #d7e4ef; border-radius: 16px;
+    }
+    .process-step:not(:last-child)::after {
+      content: "→"; position: absolute; right: -.58rem; top: 43%; z-index: 2;
+      color: #2a7ca6; font-size: 1.25rem; font-weight: 900;
+    }
+    .process-step.blocked { background: #fff7e8; border-color: #efc77e; }
+    .process-number { color: #1479aa; font-weight: 800; font-size: 1.02rem; text-transform: uppercase; }
+    .process-title { margin: .3rem 0; color: #173b5a; font-size: 1.12rem; font-weight: 800; }
+    .process-note { color: #5b6f83; font-size: 1.05rem; line-height: 1.45; }
     [data-testid="stCaptionContainer"] { color: #526981; }
-    [data-testid="stCaptionContainer"] p { font-size: 1.05rem !important; line-height: 1.6; }
+    [data-testid="stCaptionContainer"] p { font-size: 1.08rem !important; line-height: 1.6; }
     [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li {
       font-size: 1.1rem; line-height: 1.65;
     }
@@ -194,24 +249,29 @@ st.markdown(
       font-size: clamp(1.07rem, 1.55vw, 1.3rem); line-height: 1.55;
     }
     [data-testid="stWidgetLabel"] p {
-      font-size: 1.08rem !important; font-weight: 700;
+      font-size: 1.12rem !important; font-weight: 700;
     }
     [data-baseweb="select"] *, [data-baseweb="input"] input {
-      font-size: 1.08rem !important;
+      font-size: 1.12rem !important;
     }
     [data-testid="stAlert"] p, [data-testid="stAlert"] li {
-      font-size: 1.08rem !important; line-height: 1.55;
+      font-size: 1.1rem !important; line-height: 1.55;
     }
-    [data-testid="stDataFrame"] { font-size: 1.05rem; }
+    [data-testid="stDataFrame"] { font-size: 1.08rem; }
     @media (max-width: 1050px) {
       .stTabs [data-baseweb="tab-list"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .process-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .process-step::after { display: none; }
     }
     @media (max-width: 760px) {
       .block-container { padding: .8rem .7rem 2rem; }
       .dashboard-hero { padding: 1.8rem 1rem; border-radius: 18px; }
       .dashboard-hero h1 { font-size: clamp(2.2rem, 8vw, 3rem); }
       [data-testid="stMetric"] { min-height: 110px; padding: .85rem; }
-      .stTabs [data-baseweb="tab"] { min-height: 66px; padding: .65rem .6rem; font-size: 1.03rem; }
+      .stTabs [data-baseweb="tab"] { min-height: 68px; padding: .7rem .65rem; font-size: 1.08rem; }
+      .visual-equation { grid-template-columns: 1fr; }
+      .equation-sign { transform: rotate(90deg); line-height: .7; }
+      .process-flow { grid-template-columns: 1fr; }
     }
     @media (max-width: 410px) {
       .stTabs [data-baseweb="tab-list"] { grid-template-columns: 1fr; }
@@ -272,6 +332,11 @@ def fmt_pct_points(value: object) -> str:
 def chart_frequency(start: pd.Timestamp, end: pd.Timestamp) -> str:
     days = (end - start).days
     return "MS" if days > 180 else "W-MON" if days > 45 else "D"
+
+
+def chart_frequency_label(start: pd.Timestamp, end: pd.Timestamp) -> str:
+    frequency = chart_frequency(start, end)
+    return {"D": "днями", "W-MON": "тижнями", "MS": "місяцями"}[frequency]
 
 
 def style_chart(fig: go.Figure, *, height: int) -> go.Figure:
@@ -372,6 +437,12 @@ st.markdown(
     </section>""",
     unsafe_allow_html=True,
 )
+if HERO_IMAGE_PATH.exists():
+    st.image(
+        str(HERO_IMAGE_PATH),
+        width="stretch",
+        caption="Декоративна ілюстрація: історичні дані та аналітика. Не є оперативною картою.",
+    )
 
 if not metadata or national_daily.empty:
     st.error(
@@ -457,6 +528,44 @@ with st.expander("ℹ️ Джерела та дати останніх запи�
     if pd.notna(latest_source):
         st.caption("Kaggle: останній запис " + latest_source.strftime("%d.%m.%Y"))
 
+    source_periods = []
+    for source_name, frame, color in (
+        ("Kaggle · атаки", national_daily, "#147bb3"),
+        ("VIINA · інциденти", viina_daily, "#168c84"),
+        ("eTryvoga · тривоги", siren_daily, "#dc9a42"),
+    ):
+        if not frame.empty and frame["day"].notna().any():
+            source_periods.append(
+                (source_name, frame["day"].min(), frame["day"].max(), color)
+            )
+    if source_periods:
+        coverage_chart = go.Figure()
+        for source_name, first_day, last_day, color in source_periods:
+            coverage_chart.add_trace(go.Scatter(
+                x=[first_day, last_day], y=[source_name, source_name],
+                mode="lines+markers", showlegend=False,
+                line=dict(color=color, width=14),
+                marker=dict(color="#ffffff", size=13, line=dict(color=color, width=4)),
+                customdata=[[first_day, last_day], [first_day, last_day]],
+                hovertemplate=(
+                    "%{y}<br>Від: %{customdata[0]|%d.%m.%Y}<br>"
+                    "До: %{customdata[1]|%d.%m.%Y}<extra></extra>"
+                ),
+            ))
+            coverage_chart.add_annotation(
+                x=last_day, y=source_name,
+                text=last_day.strftime("%d.%m.%Y"), showarrow=False,
+                xanchor="left", xshift=12, font=dict(size=16, color="#38536d"),
+            )
+        style_chart(coverage_chart, height=285)
+        coverage_chart.update_layout(margin=dict(l=20, r=125, t=24, b=45))
+        coverage_chart.update_xaxes(title_text="Фактичний часовий діапазон у знімку")
+        coverage_chart.update_yaxes(title_text=None, showgrid=False)
+        st.plotly_chart(
+            coverage_chart, width="stretch", key="source_coverage",
+            config={"displayModeBar": False},
+        )
+
 if period_mode == "Власний період" and (
     not isinstance(date_range, tuple) or len(date_range) != 2
 ):
@@ -469,6 +578,15 @@ if isinstance(date_range, tuple) and len(date_range) == 2:
 else:
     start_day = min_day
     end_day = max_day + pd.Timedelta(days=1)
+
+st.markdown(
+    '<div class="selection-strip">'
+    f'<span class="selection-chip">📅 Період: <b>{start_day:%d.%m.%Y} — '
+    f'{end_day - pd.Timedelta(days=1):%d.%m.%Y}</b></span>'
+    f'<span class="selection-chip">📍 Територія: <b>{escape(selected_oblast)}</b></span>'
+    '</div>',
+    unsafe_allow_html=True,
+)
 
 filtered_national = national_daily[
     (national_daily["day"] >= start_day)
@@ -644,7 +762,11 @@ with overview_tab:
         fig.update_yaxes(title_text="Кількість", row=1, col=1)
         fig.update_yaxes(title_text="Кількість", row=2, col=1)
         fig.update_xaxes(title_text="Дата", row=2, col=1)
-        st.caption("Кожне джерело має власну шкалу. Дані згруповано за днями, тижнями або місяцями відповідно до періоду.")
+        st.caption(
+            "Кожне джерело має власну шкалу. Для читабельності дані "
+            f"згруповано {chart_frequency_label(start_day, end_day)}; "
+            "точні значення доступні при наведенні."
+        )
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     st.subheader("Структура подій за типом")
@@ -727,6 +849,42 @@ with interception_tab:
             "«Без підтвердженого збиття» = запущено − збито. "
             "Це не кількість влучань: джерело не містить перевірених даних "
             "про наслідок кожної незбитої цілі."
+        )
+
+        st.markdown(
+            '<div class="visual-equation">'
+            f'<div class="equation-card"><span class="equation-value">{fmt_int(launched)}</span>'
+            '<span class="equation-label">повідомлено запущено</span></div>'
+            '<span class="equation-sign">=</span>'
+            f'<div class="equation-card"><span class="equation-value">{fmt_int(intercepted)}</span>'
+            '<span class="equation-label">заявлено збито</span></div>'
+            '<span class="equation-sign">+</span>'
+            f'<div class="equation-card"><span class="equation-value">{fmt_int(not_confirmed)}</span>'
+            '<span class="equation-label">без підтвердженого збиття</span></div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+        composition_chart = go.Figure(go.Pie(
+            values=[intercepted, not_confirmed],
+            labels=["Заявлено збито", "Без підтвердженого збиття"],
+            hole=.68, sort=False, direction="clockwise",
+            marker=dict(colors=["#168c84", "#e3a044"], line=dict(color="#ffffff", width=3)),
+            textinfo="percent", textfont=dict(size=18, color="#ffffff"),
+            hovertemplate="%{label}<br>%{value:,.0f} · %{percent}<extra></extra>",
+        ))
+        style_chart(composition_chart, height=350)
+        composition_chart.update_layout(
+            margin=dict(l=15, r=15, t=25, b=15),
+            legend=dict(orientation="h", y=-.04, x=.5, xanchor="center", font_size=16),
+            annotations=[dict(
+                text=f"{fmt_pct(intercepted / launched) if launched else '—'}<br><span style='font-size:14px'>заявлено збито</span>",
+                x=.5, y=.5, showarrow=False, font=dict(size=25, color="#173b5a"),
+            )],
+        )
+        st.plotly_chart(
+            composition_chart, width="stretch", key="interception_composition",
+            config={"displayModeBar": False},
         )
 
         by_type = (
@@ -1064,6 +1222,10 @@ with regions_tab:
             detail_fig.update_yaxes(title_text="Кількість", row=2, col=1)
             detail_fig.update_xaxes(title_text="Дата", row=2, col=1)
             st.plotly_chart(detail_fig, width="stretch", config={"displayModeBar": False})
+            st.caption(
+                f"Дані згруповано {chart_frequency_label(start_day, end_day)}. "
+                "Порожня панель означає відсутність записів джерела за цей період."
+            )
 
         st.caption(
             "Kaggle та VIINA мають різні методики збору, тому їхні сирі "
@@ -1137,6 +1299,34 @@ with quality_tab:
         fmt_pct(quality.get("recent_region_coverage_90d")),
     )
 
+    coverage_values = [
+        100 * float(quality.get("region_coverage_rate") or 0),
+        100 * float(quality.get("recent_region_coverage_90d") or 0),
+    ]
+    quality_chart = go.Figure(go.Bar(
+        x=coverage_values,
+        y=["За весь період", "За останні 90 днів"],
+        orientation="h", width=.46,
+        marker=dict(color=["#147bb3", "#168c84"], line_width=0),
+        text=[fmt_pct_points(value) for value in coverage_values],
+        textposition="outside", textfont=dict(size=17, color="#243e58"),
+        hovertemplate="%{y}<br>Покриття: %{x:.1f}%<extra></extra>",
+    ))
+    style_chart(quality_chart, height=265)
+    quality_chart.add_vline(
+        x=25, line_width=2, line_dash="dash", line_color="#d68d2f",
+        annotation_text="Мінімальний поріг 25%",
+        annotation_position="top right",
+        annotation_font_size=16,
+    )
+    quality_chart.update_layout(margin=dict(l=20, r=85, t=45, b=45), showlegend=False)
+    quality_chart.update_xaxes(range=[0, 100], title_text="Записи з визначеною областю, %")
+    quality_chart.update_yaxes(title_text=None, showgrid=False)
+    st.plotly_chart(
+        quality_chart, width="stretch", key="region_coverage_quality",
+        config={"displayModeBar": False},
+    )
+
     ready = bool(quality.get("model_ready_for_serving", False))
     if ready:
         st.success("Дані відповідають поточним порогам готовності моделі.")
@@ -1178,6 +1368,30 @@ with ml_tab:
         "Щотижня система перевіряє нові дані. Навчання і заміна моделі "
         "дозволені лише після підтвердження повноти регіональних спостережень."
     )
+    gate_blocked = not bool(quality.get("model_ready_for_serving", False))
+    process_steps = [
+        ("Крок 1", "Оновлення даних", "Джерела завантажуються щотижня.", False),
+        (
+            "Крок 2", "Контроль якості",
+            "Зупинено: регіональних міток недостатньо."
+            if gate_blocked else "Перевірки пройдено.",
+            gate_blocked,
+        ),
+        ("Крок 3", "Навчання кандидата", "Очікує підтверджених результатів.", False),
+        ("Крок 4", "Чесне порівняння", "Лише на періоді, якого модель не бачила.", False),
+        ("Крок 5", "Заміна моделі", "Лише після покращення метрик.", False),
+    ]
+    process_html = '<div class="process-flow">'
+    for number, title, note, blocked in process_steps:
+        process_html += (
+            f'<div class="process-step{" blocked" if blocked else ""}">'
+            f'<div class="process-number">{escape(number)}</div>'
+            f'<div class="process-title">{escape(title)}</div>'
+            f'<div class="process-note">{escape(note)}</div></div>'
+        )
+    process_html += '</div>'
+    st.markdown(process_html, unsafe_allow_html=True)
+
     if learning.get("status") == "blocked_unverified_outcomes":
         st.warning(
             "Навчання призупинено: відсутність запису про атаку не доводить, "

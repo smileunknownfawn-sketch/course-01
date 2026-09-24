@@ -102,6 +102,12 @@ reliability, and model status. Source dates and definitions are under
 “Джерела та дати останніх записів”. A missing source period is shown as “—”,
 not as zero incidents.
 
+The interface also includes a lightweight decorative hero image, an exact
+source-coverage timeline, a visual equation for launches/interceptions, a
+regional-coverage threshold chart, and a step-by-step learning-cycle diagram.
+Decorative imagery is explicitly separated from factual maps and charts; the
+oblast map continues to use the repository's GeoJSON boundaries.
+
 See `docs/self_learning.md` for the full lifecycle.
 
 ## Tests
