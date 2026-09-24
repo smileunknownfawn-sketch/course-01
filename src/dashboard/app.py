@@ -162,6 +162,25 @@ st.markdown(
       overflow: hidden; box-shadow: 0 14px 45px rgba(19,66,103,.09);
     }
     [data-testid="stImage"] img { display: block; }
+    .reading-guide {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .85rem; margin: 1rem 0 1.45rem;
+    }
+    .guide-card {
+      display: grid; grid-template-columns: 52px 1fr; align-items: center;
+      gap: .8rem; min-height: 106px; padding: 1rem 1.05rem;
+      background: linear-gradient(145deg, #ffffff, #f6fafe);
+      border: 1px solid #d5e3ef; border-radius: 18px;
+      box-shadow: 0 5px 18px rgba(20,62,94,.055);
+    }
+    .guide-icon {
+      display: grid; place-items: center; width: 52px; height: 52px;
+      color: #fff; background: linear-gradient(145deg, #1479ad, #11577f);
+      border-radius: 15px; font-size: 1.45rem;
+      box-shadow: 0 6px 15px rgba(18,107,158,.18);
+    }
+    .guide-title { color: #173b5a; font-size: 1.12rem; font-weight: 800; line-height: 1.3; }
+    .guide-note { margin-top: .22rem; color: #526981; font-size: 1rem; line-height: 1.45; }
     .selection-strip {
       display: flex; flex-wrap: wrap; justify-content: center; gap: .65rem;
       margin: .3rem 0 1.35rem;
@@ -177,6 +196,10 @@ st.markdown(
       background: #fff; border: 1px solid #dce6f1; border-radius: 16px;
       padding: 1.1rem 1.25rem; box-shadow: 0 5px 22px rgba(22,53,85,.045);
       min-height: 125px;
+    }
+    [data-testid="stMetric"]:hover {
+      border-color: #b9d2e5; box-shadow: 0 9px 28px rgba(22,53,85,.09);
+      transform: translateY(-1px); transition: .18s ease;
     }
     [data-testid="stMetricLabel"] { color: #536981; font-weight: 600; }
     [data-testid="stMetricLabel"] p { font-size: 1.12rem !important; line-height: 1.45; }
@@ -206,7 +229,7 @@ st.markdown(
     }
     [data-testid="stPlotlyChart"], [data-testid="stDataFrame"] {
       background: #fff; border: 1px solid #dce6f1; border-radius: 16px;
-      padding: .65rem; overflow: hidden;
+      padding: .8rem; overflow: hidden; box-shadow: 0 5px 22px rgba(22,53,85,.045);
     }
     [data-testid="stVerticalBlockBorderWrapper"] {
       background: rgba(255,255,255,.86); border-color: #d7e4ef !important;
@@ -260,6 +283,7 @@ st.markdown(
     [data-testid="stDataFrame"] { font-size: 1.08rem; }
     @media (max-width: 1050px) {
       .stTabs [data-baseweb="tab-list"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .reading-guide { grid-template-columns: 1fr; }
       .process-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .process-step::after { display: none; }
     }
@@ -343,14 +367,18 @@ def style_chart(fig: go.Figure, *, height: int) -> go.Figure:
     fig.update_layout(
         template="plotly_white", height=height,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Arial, sans-serif", size=17, color="#233c58"),
-        hoverlabel=dict(font_size=17, bgcolor="#ffffff", font_color="#17334e"),
+        font=dict(family="Arial, sans-serif", size=18, color="#233c58"),
+        hoverlabel=dict(font_size=18, bgcolor="#ffffff", font_color="#17334e"),
         margin=dict(l=22, r=26, t=32, b=42),
-        legend=dict(font_size=16, orientation="h", y=1.16),
+        legend=dict(
+            font_size=17, orientation="h", y=1.16,
+            bgcolor="rgba(255,255,255,.86)", bordercolor="#dce6f1", borderwidth=1,
+        ),
+        uniformtext=dict(minsize=15, mode="hide"),
     )
-    fig.update_xaxes(tickfont_size=16, title_font_size=17, showgrid=False,
+    fig.update_xaxes(tickfont_size=17, title_font_size=18, showgrid=False,
                      linecolor="#ccdbe9", zeroline=False)
-    fig.update_yaxes(tickfont_size=16, title_font_size=17,
+    fig.update_yaxes(tickfont_size=17, title_font_size=18,
                      gridcolor="#e6edf5", zeroline=False)
     return fig
 
@@ -655,6 +683,27 @@ elif not viina_daily.empty and (max_day - viina_daily["day"].max()).days > 30:
     )
 if pd.notna(generated_at):
     st.caption("Знімок даних оновлено: " + generated_at.strftime("%d.%m.%Y %H:%M UTC"))
+
+st.markdown(
+    """<div class="reading-guide" aria-label="Як користуватися панеллю">
+      <div class="guide-card">
+        <div class="guide-icon" aria-hidden="true">1</div>
+        <div><div class="guide-title">Оберіть зріз</div>
+        <div class="guide-note">Період і область керують усіма показниками нижче.</div></div>
+      </div>
+      <div class="guide-card">
+        <div class="guide-icon" aria-hidden="true">2</div>
+        <div><div class="guide-title">Порівняйте факти</div>
+        <div class="guide-note">Кількості, відсотки та динаміка показані окремо.</div></div>
+      </div>
+      <div class="guide-card">
+        <div class="guide-icon" aria-hidden="true">3</div>
+        <div><div class="guide-title">Перевірте надійність</div>
+        <div class="guide-note">Прочерк означає відсутність даних, а не нуль подій.</div></div>
+      </div>
+    </div>""",
+    unsafe_allow_html=True,
+)
 
 st.markdown("### Оберіть розділ")
 overview_tab, interception_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.tabs(
