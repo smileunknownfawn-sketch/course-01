@@ -21,6 +21,9 @@ def _format_count(value: int) -> str:
 def test_period_and_oblast_controls_update_the_summary():
     national = pd.read_csv(ROOT / "data/dashboard/national_daily.csv", parse_dates=["day"])
     regional = pd.read_csv(ROOT / "data/dashboard/oblast_daily.csv", parse_dates=["day"])
+    interception = pd.read_csv(
+        ROOT / "data/dashboard/interception_by_type_daily.csv", parse_dates=["day"]
+    )
     latest = national["day"].max()
     since = latest - pd.Timedelta(days=29)
 
@@ -33,10 +36,15 @@ def test_period_and_oblast_controls_update_the_summary():
         "interception_composition",
         "region_coverage_quality",
         "alert_calendar",
+        "near_term_risk",
     }.issubset(chart_by_key)
-    assert _metric(app, "Kaggle · записів з областю") != "—"
-    assert _metric(app, "VIINA · повітряних інцидентів") != "—"
+    assert _metric(app, "Повідомлень із визначеною областю") != "—"
+    assert _metric(app, "Повітряних інцидентів") != "—"
     assert _metric(app, "Частка подій області-лідера").endswith("%")
+    launched = interception.groupby("category")["launched"].sum()
+    assert _metric(app, "Повідомлено запущено БпЛА") == _format_count(int(launched["uav"]))
+    assert _metric(app, "Повідомлено запущено ракет") == _format_count(int(launched["missile"]))
+    assert int(launched["uav"]) > int(launched["missile"]) * 10
     coverage_spec = json.loads(chart_by_key["source_coverage"].proto.spec)
     assert coverage_spec["layout"]["font"]["size"] >= 18
     assert any("2025-08-27" in str(trace["x"]) for trace in coverage_spec["data"])
@@ -44,9 +52,9 @@ def test_period_and_oblast_controls_update_the_summary():
     app.selectbox[0].set_value("Останні 30 днів").run()
     assert not app.exception
     expected_national = int(national.loc[national["day"] >= since, "attack_records"].sum())
-    assert _metric(app, "Записів атак · Kaggle") == _format_count(expected_national)
+    assert _metric(app, "Повідомлень про атаки") == _format_count(expected_national)
     assert _metric(app, "Записів атак") == _format_count(expected_national)
-    assert _metric(app, "Повітряних інцидентів · VIINA") == "—"
+    assert _metric(app, "Повітряних інцидентів") == "—"
 
     app.selectbox[1].set_value("Одеська область").run()
     assert not app.exception
@@ -54,7 +62,7 @@ def test_period_and_oblast_controls_update_the_summary():
         regional["day"].ge(since) & regional["oblast"].eq("Одеська область"),
         "attack_events",
     ].sum())
-    assert _metric(app, "Регіонально позначених записів · Kaggle") == _format_count(expected_regional)
+    assert _metric(app, "Регіонально позначених повідомлень") == _format_count(expected_regional)
     assert _metric(app, "Днів із повітряними тривогами") != "0"
     assert _metric(app, "Перевірених повідомлень за 30 днів") == "1"
     assert _metric(app, "Фотографій наслідків") == "2"
@@ -62,6 +70,10 @@ def test_period_and_oblast_controls_update_the_summary():
     assert _metric(app, "Фотографій у добірці") == "2"
     assert any(
         "Удари реактивними БпЛА спричинили масштабні пожежі" in item.value
+        for item in app.markdown
+    )
+    assert any(
+        "Натисніть, щоб збільшити" in item.value
         for item in app.markdown
     )
     assert any(

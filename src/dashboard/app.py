@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import json
+import math
+import mimetypes
 from html import escape
 from pathlib import Path
 
@@ -19,7 +22,6 @@ DASHBOARD_DIR = ROOT_DIR / "data" / "dashboard"
 GEOJSON_PATH = ROOT_DIR / "data" / "geo" / "ukraine_admin1.geojson"
 HERO_IMAGE_PATH = ROOT_DIR / "assets" / "dashboard-hero-v3.webp"
 SOURCES_IMAGE_PATH = ROOT_DIR / "assets" / "source-verification.webp"
-ACTIVITY_IMAGE_PATH = ROOT_DIR / "assets" / "regional-activity-calendar.webp"
 
 UKRAINE_ADMIN1_FALLBACK = [
     "Автономна Республіка Крим",
@@ -61,8 +63,12 @@ ATTACK_TYPE_UA = {
 
 px.defaults.template = "plotly_white"
 px.defaults.color_discrete_sequence = [
-    "#187caf", "#e59a3b", "#237c83", "#8258a6", "#5c7392"
+    "#385847", "#b88742", "#65756a", "#7a6048", "#566878"
 ]
+
+SOURCE_ATTACKS_UA = "Реєстр масованих атак"
+SOURCE_INCIDENTS_UA = "Реєстр повітряних інцидентів"
+SOURCE_ALERTS_UA = "Реєстр повітряних тривог"
 
 QUALITY_LABELS_UA = {
     "attack_rows": "Записів атак",
@@ -76,7 +82,7 @@ QUALITY_LABELS_UA = {
     "latest_attack_date": "Остання дата атаки у джерелі",
     "latest_region_labeled_date": "Остання дата з регіональною міткою",
     "region_label_lag_days": "Відставання регіональної розмітки, днів",
-    "duplicate_attack_ids": "Дублікати ID атак",
+    "duplicate_attack_ids": "Дублікати ідентифікаторів атак",
     "invalid_attack_dates": "Некоректні дати",
     "missing_attack_types": "Записи без типу атаки",
     "orphan_region_links": "Некоректні зв'язки з областями",
@@ -130,52 +136,54 @@ st.markdown(
     """<style>
     :root { color-scheme: light; }
     [data-testid="stAppViewContainer"] {
-      background: linear-gradient(180deg, #edf5fb 0, #f7f9fc 520px, #f3f7fc 100%);
-      color: #17283c;
+      background:
+        radial-gradient(circle at 92% 4%, rgba(159,132,79,.13), transparent 27rem),
+        linear-gradient(180deg, #ece9df 0, #f7f5ef 520px, #efede5 100%);
+      color: #27352f;
     }
-    [data-testid="stHeader"] { background: rgba(243,247,252,.88); backdrop-filter: blur(12px); }
+    [data-testid="stHeader"] { background: rgba(239,237,229,.9); backdrop-filter: blur(12px); }
     .block-container { max-width: 1480px; padding-top: 1.35rem; padding-bottom: 3rem; }
-    h1, h2, h3 { color: #123253; letter-spacing: -.025em; line-height: 1.2; }
+    h1, h2, h3 { color: #263c31; letter-spacing: -.025em; line-height: 1.2; }
     [data-testid="stMarkdownContainer"] h2 { font-size: clamp(1.7rem, 2.1vw, 2.15rem); }
     [data-testid="stMarkdownContainer"] h3 { font-size: clamp(1.35rem, 1.7vw, 1.7rem); padding-top: .7rem; }
     .dashboard-hero {
       text-align: left; padding: 2.25rem 2rem; margin-bottom: .8rem;
-      border: 1px solid #caddec; border-radius: 26px 26px 12px 12px;
+      border: 1px solid #42574a; border-radius: 26px 26px 12px 12px;
       background:
-        radial-gradient(circle at 92% 16%, rgba(50,161,188,.17), transparent 34%),
-        linear-gradient(125deg, rgba(224,241,251,.98), rgba(251,253,255,.98) 62%, rgba(233,245,241,.98));
-      box-shadow: 0 14px 45px rgba(19,66,103,.09);
+        radial-gradient(circle at 88% 18%, rgba(204,171,100,.2), transparent 32%),
+        linear-gradient(125deg, #182820, #2c4437 62%, #465c43);
+      box-shadow: 0 16px 44px rgba(28,42,34,.18);
     }
     .dashboard-hero .eyebrow {
-      color: #126d85; font-size: 1.05rem; font-weight: 800;
+      color: #d8b876; font-size: 1.05rem; font-weight: 800;
       letter-spacing: .11em; text-transform: uppercase;
     }
     .dashboard-hero h1 {
       margin: .65rem 0 1rem; max-width: 950px;
-      color: #123253; font-size: clamp(2.3rem, 4vw, 3.85rem);
+      color: #fffdf6; font-size: clamp(2.3rem, 4vw, 3.85rem);
       line-height: 1.12; font-weight: 800;
     }
     .dashboard-hero p {
       margin: 0; max-width: 820px;
-      color: #35516c; font-size: clamp(1.07rem, 1.55vw, 1.3rem);
+      color: #dce5dd; font-size: clamp(1.07rem, 1.55vw, 1.3rem);
       line-height: 1.55;
     }
     .hero-pills { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1.2rem; }
     .hero-pill {
       display: inline-flex; align-items: center; gap: .4rem;
       padding: .46rem .75rem; border-radius: 999px;
-      color: #194c68; background: rgba(255,255,255,.82);
-      border: 1px solid #c8dfeb; font-size: .96rem; font-weight: 750;
+      color: #f6f1e5; background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.2); font-size: .96rem; font-weight: 750;
     }
     .system-status {
       display: grid; grid-template-columns: 1.25fr repeat(3, 1fr);
       gap: .7rem; margin: 1rem 0 1.3rem; padding: .9rem;
-      color: #eaf7ff; background: linear-gradient(120deg, #123e62, #0d6380 58%, #17796f);
-      border-radius: 18px; box-shadow: 0 10px 28px rgba(17,64,94,.17);
+      color: #f5f2e8; background: linear-gradient(120deg, #182820, #30483a 58%, #5d5638);
+      border-radius: 18px; box-shadow: 0 10px 28px rgba(29,45,35,.18);
     }
     .status-cell { padding: .35rem .55rem; }
     .status-cell + .status-cell { border-left: 1px solid rgba(255,255,255,.18); }
-    .status-label { color: #b9ddea; font-size: .9rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    .status-label { color: #d7c69f; font-size: .9rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
     .status-value { margin-top: .2rem; font-size: 1.05rem; font-weight: 800; line-height: 1.35; }
     .learning-flow {
       display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -183,42 +191,76 @@ st.markdown(
     }
     .learning-step {
       position: relative; min-height: 112px; padding: .95rem 1rem;
-      background: linear-gradient(145deg, #ffffff, #f4f9fd);
-      border: 1px solid #d3e2ee; border-radius: 16px;
+      background: linear-gradient(145deg, #fffefa, #f0eee5);
+      border: 1px solid #d7d2c4; border-radius: 16px;
     }
     .learning-step:not(:last-child)::after {
       content: "→"; position: absolute; right: -.56rem; top: 42%; z-index: 2;
-      color: #247ea4; font-size: 1.25rem; font-weight: 900;
+      color: #667b62; font-size: 1.25rem; font-weight: 900;
     }
     .learning-icon { font-size: 1.45rem; }
-    .learning-title { margin-top: .25rem; color: #163d5d; font-size: 1.04rem; font-weight: 850; }
-    .learning-note { margin-top: .15rem; color: #587085; font-size: .95rem; line-height: 1.4; }
+    .learning-title { margin-top: .25rem; color: #2d4638; font-size: 1.04rem; font-weight: 850; }
+    .learning-note { margin-top: .15rem; color: #687369; font-size: .95rem; line-height: 1.4; }
     .event-heading {
       margin: .2rem 0 1rem; padding: 1rem 1.15rem;
-      color: #153b59; background: linear-gradient(100deg, #eaf6fb, #f7fbfd);
-      border-left: 6px solid #177ca9; border-radius: 10px 16px 16px 10px;
+      color: #2b4336; background: linear-gradient(100deg, #eceee7, #faf8f1);
+      border-left: 6px solid #667b62; border-radius: 10px 16px 16px 10px;
     }
     .event-heading strong { display: block; font-size: 1.28rem; }
-    .event-heading span { display: block; margin-top: .25rem; color: #4c687f; font-size: 1rem; }
+    .event-heading span { display: block; margin-top: .25rem; color: #647066; font-size: 1rem; }
     .event-facts {
       display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: .65rem; margin: .7rem 0 1rem;
     }
     .event-fact {
-      padding: .78rem .85rem; background: #f4f8fc;
-      border: 1px solid #dbe7f0; border-radius: 13px;
-      color: #274760; font-size: 1rem; line-height: 1.45;
+      padding: .78rem .85rem; background: #f3f1e9;
+      border: 1px solid #ddd8cb; border-radius: 13px;
+      color: #405147; font-size: 1rem; line-height: 1.45;
     }
-    .event-fact b { display: block; margin-bottom: .18rem; color: #153f60; }
+    .event-fact b { display: block; margin-bottom: .18rem; color: #2d493a; }
     .plain-language-note {
       margin: .75rem 0 1rem; padding: .9rem 1rem;
       color: #4b3f21; background: #fff8e9;
       border: 1px solid #efd49a; border-radius: 14px; line-height: 1.5;
     }
+    .risk-callout {
+      margin: 1rem 0 1.2rem; padding: 1.2rem 1.3rem;
+      color: #f8f4e9; background: linear-gradient(125deg, #24382d, #526047);
+      border: 1px solid #66725a; border-left: 7px solid #c39a55;
+      border-radius: 18px; box-shadow: 0 10px 28px rgba(33,48,38,.16);
+    }
+    .risk-callout .risk-kicker { color: #dec58e; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .risk-callout .risk-value { margin: .3rem 0; color: #fff; font-size: clamp(1.55rem, 2.5vw, 2.45rem); font-weight: 850; }
+    .risk-callout .risk-note { color: #dce4dc; line-height: 1.5; }
+    .photo-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 190px));
+      gap: .75rem; align-items: start; margin: .8rem 0 1rem;
+    }
+    .photo-card { overflow: hidden; background: #1d2b23; border: 1px solid #4f6154; border-radius: 14px; }
+    .photo-card summary { position: relative; display: block; cursor: zoom-in; list-style: none; }
+    .photo-card summary::-webkit-details-marker { display: none; }
+    .photo-thumb { display: block; width: 100%; height: 118px; object-fit: cover; }
+    .photo-hint {
+      display: block; padding: .52rem .65rem; color: #f6f2e7;
+      background: #293c31; font-size: .86rem; font-weight: 750; text-align: center;
+    }
+    .photo-card[open] { grid-column: 1 / -1; max-width: 920px; }
+    .photo-hint-close { display: none; }
+    .photo-card[open] summary { display: block; cursor: zoom-out; }
+    .photo-card[open] .photo-thumb, .photo-card[open] .photo-hint-open { display: none; }
+    .photo-card[open] .photo-hint-close { display: block; }
+    .photo-full { display: block; width: 100%; max-height: 680px; object-fit: contain; background: #121b16; }
+    .photo-caption { display: block; padding: .75rem .9rem; color: #f1eee4; line-height: 1.45; }
+    .calendar-legend {
+      display: flex; flex-wrap: wrap; gap: .55rem; margin: .65rem 0 1rem;
+      color: #526057; font-size: .95rem;
+    }
+    .calendar-legend span { display: inline-flex; align-items: center; gap: .38rem; }
+    .calendar-dot { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
     [data-testid="stImage"] {
       margin-bottom: 1.15rem;
-      border: 1px solid #caddec; border-radius: 12px 12px 24px 24px;
-      overflow: hidden; box-shadow: 0 14px 45px rgba(19,66,103,.09);
+      border: 1px solid #d3cfc3; border-radius: 12px 12px 24px 24px;
+      overflow: hidden; box-shadow: 0 14px 45px rgba(38,55,44,.09);
     }
     [data-testid="stImage"] img { display: block; }
     .reading-guide {
@@ -228,18 +270,18 @@ st.markdown(
     .guide-card {
       display: grid; grid-template-columns: 52px 1fr; align-items: center;
       gap: .8rem; min-height: 106px; padding: 1rem 1.05rem;
-      background: linear-gradient(145deg, #ffffff, #f6fafe);
-      border: 1px solid #d5e3ef; border-radius: 18px;
+      background: linear-gradient(145deg, #fffefa, #f2f0e8);
+      border: 1px solid #d8d3c5; border-radius: 18px;
       box-shadow: 0 5px 18px rgba(20,62,94,.055);
     }
     .guide-icon {
       display: grid; place-items: center; width: 52px; height: 52px;
-      color: #fff; background: linear-gradient(145deg, #1479ad, #11577f);
+      color: #fff; background: linear-gradient(145deg, #536a59, #2c4638);
       border-radius: 15px; font-size: 1.45rem;
       box-shadow: 0 6px 15px rgba(18,107,158,.18);
     }
-    .guide-title { color: #173b5a; font-size: 1.12rem; font-weight: 800; line-height: 1.3; }
-    .guide-note { margin-top: .22rem; color: #526981; font-size: 1rem; line-height: 1.45; }
+    .guide-title { color: #2b4436; font-size: 1.12rem; font-weight: 800; line-height: 1.3; }
+    .guide-note { margin-top: .22rem; color: #68736a; font-size: 1rem; line-height: 1.45; }
     .selection-strip {
       display: flex; flex-wrap: wrap; justify-content: center; gap: .65rem;
       margin: .3rem 0 1.35rem;
@@ -247,12 +289,12 @@ st.markdown(
     .selection-chip {
       display: inline-flex; align-items: center; gap: .45rem;
       padding: .5rem .82rem; border-radius: 999px; background: #fff;
-      color: #294965; font-size: 1.08rem; font-weight: 700;
-      border: 1px solid #d4e3ef; box-shadow: 0 3px 12px rgba(20,62,94,.05);
+      color: #405348; font-size: 1.08rem; font-weight: 700;
+      border: 1px solid #d6d1c5; box-shadow: 0 3px 12px rgba(40,57,46,.05);
     }
-    .selection-chip b { color: #0f6d9d; }
+    .selection-chip b { color: #45604e; }
     [data-testid="stMetric"] {
-      background: #fff; border: 1px solid #dce6f1; border-radius: 16px;
+      background: #fffefa; border: 1px solid #d9d4c8; border-radius: 16px;
       padding: 1.1rem 1.25rem; box-shadow: 0 5px 22px rgba(22,53,85,.045);
       min-height: 125px;
     }
@@ -262,7 +304,7 @@ st.markdown(
     }
     [data-testid="stMetricLabel"] { color: #536981; font-weight: 600; }
     [data-testid="stMetricLabel"] p { font-size: 1.12rem !important; line-height: 1.45; }
-    [data-testid="stMetricValue"] { color: #113e68; font-weight: 750; letter-spacing: -.035em; }
+    [data-testid="stMetricValue"] { color: #314d3d; font-weight: 750; letter-spacing: -.035em; }
     [data-testid="stMetricValue"] div { font-size: clamp(1.8rem, 2.25vw, 2.55rem); }
     .stTabs [data-baseweb="tab-list"] {
       display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -271,23 +313,23 @@ st.markdown(
     .stTabs [data-baseweb="tab"] {
       display: flex; align-items: center; justify-content: center;
       width: 100%; min-height: 64px; padding: .7rem 1rem;
-      color: #294965; background: #fff; font-size: 1.13rem;
+      color: #405348; background: #fffefa; font-size: 1.13rem;
       line-height: 1.3; font-weight: 700; white-space: normal;
       border: 1px solid #d8e4ef; border-radius: 14px;
       box-shadow: 0 3px 10px rgba(22,53,85,.04);
     }
     .stTabs [data-baseweb="tab"]:hover, .stTabs [data-baseweb="tab"]:focus-visible {
-      border-color: #2287b8; background: #edf7fc;
+      border-color: #71866e; background: #eff1e9;
     }
     .stTabs [data-baseweb="tab"][aria-selected="true"] {
-      color: #fff; background: #126b9e; border-color: #126b9e;
-      box-shadow: 0 5px 16px rgba(18,107,158,.18);
+      color: #fff; background: #3d5948; border-color: #3d5948;
+      box-shadow: 0 5px 16px rgba(46,74,57,.2);
     }
     .stTabs [data-baseweb="tab-border"], .stTabs [data-baseweb="tab-highlight"] {
       display: none;
     }
     [data-testid="stPlotlyChart"], [data-testid="stDataFrame"] {
-      background: #fff; border: 1px solid #dce6f1; border-radius: 16px;
+      background: #fffefa; border: 1px solid #d9d4c8; border-radius: 16px;
       padding: .8rem; overflow: hidden; box-shadow: 0 5px 22px rgba(22,53,85,.045);
     }
     [data-testid="stVerticalBlockBorderWrapper"] {
@@ -443,23 +485,93 @@ def activity_level(index: float) -> str:
     return "низька"
 
 
+def normalized_share(
+    values: pd.Series,
+    index: pd.Index,
+) -> pd.Series:
+    """Return a non-negative share aligned to every oblast in the index."""
+    aligned = pd.to_numeric(values, errors="coerce").reindex(index, fill_value=0).fillna(0)
+    aligned = aligned.clip(lower=0)
+    total = float(aligned.sum())
+    if total <= 0:
+        return pd.Series(0.0, index=index)
+    return aligned / total
+
+
+def build_near_term_risk_estimate(
+    oblasts: list[str],
+    attacks: pd.DataFrame,
+    alerts: pd.DataFrame,
+) -> pd.DataFrame:
+    """Build a transparent oblast-level risk distribution from lagging signals.
+
+    The result is a relative, non-operational indicator. It is intentionally
+    limited to oblast level and must not be presented as a calibrated forecast.
+    """
+    index = pd.Index(sorted(set(oblasts)), name="oblast")
+    if index.empty:
+        return pd.DataFrame()
+
+    components: list[tuple[str, float, pd.Series]] = []
+    attack_copy = attacks.dropna(subset=["day", "oblast"]).copy()
+    if not attack_copy.empty:
+        attack_end = attack_copy["day"].max()
+        for days, weight, label in (
+            (30, 0.45, "Події за 30 днів"),
+            (90, 0.25, "Події за 90 днів"),
+        ):
+            window = attack_copy[attack_copy["day"] >= attack_end - pd.Timedelta(days=days - 1)]
+            grouped = window.groupby("oblast")["attack_events"].sum()
+            components.append((label, weight, normalized_share(grouped, index)))
+
+        last_seen = attack_copy.groupby("oblast")["day"].max().reindex(index)
+        days_since = (attack_end - last_seen).dt.total_seconds().div(86400)
+        recency = (-days_since.fillna(365).clip(lower=0) / 30).map(math.exp)
+        components.append(("Свіжість подій", 0.10, normalized_share(recency, index)))
+
+    alert_copy = alerts.dropna(subset=["day", "oblast"]).copy()
+    if not alert_copy.empty:
+        alert_end = alert_copy["day"].max()
+        alert_window = alert_copy[
+            alert_copy["day"] >= alert_end - pd.Timedelta(days=13)
+        ]
+        grouped_alerts = alert_window.groupby("oblast")["alert_count"].sum()
+        components.append(
+            ("Тривоги за 14 днів", 0.20, normalized_share(grouped_alerts, index))
+        )
+
+    active = [(label, weight, values) for label, weight, values in components if values.sum() > 0]
+    if not active:
+        return pd.DataFrame()
+    weight_total = sum(weight for _, weight, _ in active)
+    score = sum((weight / weight_total) * values for _, weight, values in active)
+
+    result = pd.DataFrame({"oblast": index, "risk_share_pct": score.values * 100})
+    result["risk_level"] = pd.cut(
+        result["risk_share_pct"],
+        bins=[-0.01, 2.5, 5, 8, float("inf")],
+        labels=["нижчий", "помірний", "підвищений", "найвищий"],
+    ).astype(str)
+    return result.sort_values(["risk_share_pct", "oblast"], ascending=[False, True]).reset_index(drop=True)
+
+
 def style_chart(fig: go.Figure, *, height: int) -> go.Figure:
     fig.update_layout(
         template="plotly_white", height=height,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Arial, sans-serif", size=18, color="#233c58"),
-        hoverlabel=dict(font_size=18, bgcolor="#ffffff", font_color="#17334e"),
+        font=dict(family="Arial, sans-serif", size=18, color="#34473b"),
+        hoverlabel=dict(font_size=18, bgcolor="#fffefa", font_color="#2d4135"),
         margin=dict(l=22, r=26, t=32, b=42),
         legend=dict(
             font_size=17, orientation="h", y=1.16,
-            bgcolor="rgba(255,255,255,.86)", bordercolor="#dce6f1", borderwidth=1,
+            bgcolor="rgba(255,254,250,.9)", bordercolor="#d9d4c8", borderwidth=1,
         ),
         uniformtext=dict(minsize=15, mode="hide"),
     )
     fig.update_xaxes(tickfont_size=17, title_font_size=18, showgrid=False,
-                     linecolor="#ccdbe9", zeroline=False)
+                     linecolor="#d3cec1", zeroline=False)
     fig.update_yaxes(tickfont_size=17, title_font_size=18,
-                     gridcolor="#e6edf5", zeroline=False)
+                     gridcolor="#e7e3d9", zeroline=False)
     return fig
 
 
@@ -480,11 +592,53 @@ def pipe_values(value: object) -> list[str]:
     return [item.strip() for item in str(value).split("|") if item.strip()]
 
 
-def event_image_source(reference: str) -> str:
-    """Resolve repository-backed event photos while keeping URL support."""
-    if reference.startswith(("https://", "http://")):
+@st.cache_data(show_spinner=False)
+def event_image_data_uri(reference: str) -> str:
+    """Encode a repository image for a compact click-to-expand HTML gallery."""
+    if reference.startswith(("https://", "http://", "data:")):
         return reference
-    return str(ROOT_DIR / reference)
+    image_path = ROOT_DIR / reference
+    try:
+        mime_type = mimetypes.guess_type(image_path.name)[0] or "image/jpeg"
+        payload = base64.b64encode(image_path.read_bytes()).decode("ascii")
+        return f"data:{mime_type};base64,{payload}"
+    except OSError:
+        return ""
+
+
+def render_clickable_photo_gallery(
+    image_references: list[str],
+    image_alts: list[str],
+) -> None:
+    """Show small thumbnails that expand inline when clicked."""
+    cards: list[str] = []
+    for position, reference in enumerate(image_references):
+        source = event_image_data_uri(reference)
+        if not source:
+            continue
+        caption = (
+            image_alts[position]
+            if position < len(image_alts)
+            else "Фото наслідків із зазначеного джерела"
+        )
+        safe_source = escape(source, quote=True)
+        safe_caption = escape(caption)
+        cards.append(
+            '<details class="photo-card">'
+            '<summary>'
+            f'<img class="photo-thumb" src="{safe_source}" alt="{safe_caption}">'
+            '<span class="photo-hint photo-hint-open">🔍 Натисніть, щоб збільшити</span>'
+            '<span class="photo-hint photo-hint-close">Згорнути фотографію</span>'
+            '</summary>'
+            f'<img class="photo-full" src="{safe_source}" alt="{safe_caption}">'
+            f'<span class="photo-caption">{safe_caption}</span>'
+            '</details>'
+        )
+    if cards:
+        st.markdown(
+            '<div class="photo-grid">' + "".join(cards) + '</div>',
+            unsafe_allow_html=True,
+        )
 
 
 def verified_event_slice(
@@ -553,19 +707,7 @@ def render_verified_events(
             image_urls = pipe_values(event.get("image_urls"))[:photo_limit]
             image_alts = pipe_values(event.get("image_alts"))
             if image_urls:
-                photo_columns = st.columns(len(image_urls), gap="medium")
-                for photo_index, image_reference in enumerate(image_urls):
-                    caption = (
-                        image_alts[photo_index]
-                        if photo_index < len(image_alts)
-                        else "Фото наслідків із вказаного джерела"
-                    )
-                    with photo_columns[photo_index]:
-                        st.image(
-                            event_image_source(image_reference),
-                            width="stretch",
-                            caption=caption,
-                        )
+                render_clickable_photo_gallery(image_urls, image_alts)
             else:
                 st.caption(
                     "Для цього повідомлення не знайдено фото, яке можна "
@@ -697,7 +839,7 @@ recent_verified_events = verified_event_slice(
 )
 
 updated_label = (
-    generated_at.strftime("%d.%m.%Y · %H:%M UTC")
+    generated_at.tz_convert("Europe/Kyiv").strftime("%d.%m.%Y · %H:%M") + " · Київ"
     if pd.notna(generated_at) else "час не вказано"
 )
 learning_status = (
@@ -791,23 +933,23 @@ with st.container(border=True):
         date_range = (min_day.date(), max_day.date())
 
 with st.expander("ℹ️ Джерела та дати останніх записів"):
-    st.write("**Kaggle** — історичні записи про ракетні атаки й БпЛА")
-    st.write("**VIINA** — окремі геокодовані повітряні інциденти")
-    st.write("**eTryvoga** — історія повітряних тривог, лише для контексту")
+    st.write(f"**{SOURCE_ATTACKS_UA}** — історичні повідомлення про ракетні атаки й БпЛА")
+    st.write(f"**{SOURCE_INCIDENTS_UA}** — окремі географічно прив’язані повітряні інциденти")
+    st.write(f"**{SOURCE_ALERTS_UA}** — історія повітряних тривог, лише для контексту")
     st.caption(
         "Джерела мають різні визначення події. Обстріли та тривоги "
         "не змішуються як один тип факту."
     )
     if not viina_daily.empty:
-        st.caption("VIINA: останній запис " + viina_daily["day"].max().strftime("%d.%m.%Y"))
+        st.caption(SOURCE_INCIDENTS_UA + ": останній запис " + viina_daily["day"].max().strftime("%d.%m.%Y"))
     if pd.notna(latest_source):
-        st.caption("Kaggle: останній запис " + latest_source.strftime("%d.%m.%Y"))
+        st.caption(SOURCE_ATTACKS_UA + ": останній запис " + latest_source.strftime("%d.%m.%Y"))
 
     source_periods = []
     for source_name, frame, color in (
-        ("Kaggle · атаки", national_daily, "#147bb3"),
-        ("VIINA · інциденти", viina_daily, "#168c84"),
-        ("eTryvoga · тривоги", siren_daily, "#dc9a42"),
+        ("Реєстр атак", national_daily, "#455f4e"),
+        ("Реєстр інцидентів", viina_daily, "#75806a"),
+        ("Реєстр тривог", siren_daily, "#b88742"),
     ):
         if not frame.empty and frame["day"].notna().any():
             source_periods.append(
@@ -888,6 +1030,12 @@ period_interception = interception_daily[
     & (interception_daily["day"] < end_day)
 ].copy() if not interception_daily.empty else interception_daily.copy()
 
+near_term_risk = build_near_term_risk_estimate(
+    sorted(known_oblasts),
+    oblast_daily,
+    siren_daily,
+)
+
 if selected_oblast == "Усі області":
     overview_daily = filtered_national.copy()
     overview_daily["all_events"] = overview_daily["attack_records"]
@@ -916,8 +1064,8 @@ st.subheader(
 )
 is_regional_view = selected_oblast != "Усі області"
 kaggle_scope_label = (
-    "Регіонально позначених записів · Kaggle"
-    if is_regional_view else "Записів атак · Kaggle"
+    "Регіонально позначених повідомлень"
+    if is_regional_view else "Повідомлень про атаки"
 )
 alert_days = (
     int(scope_sirens.loc[scope_sirens["alert_count"] > 0, "day"].nunique())
@@ -930,7 +1078,7 @@ alert_hours = (
 status_cols = st.columns(4)
 status_cols[0].metric(kaggle_scope_label, fmt_int(overview_daily["all_events"].sum()))
 status_cols[1].metric(
-    "Повітряних інцидентів · VIINA",
+    "Повітряних інцидентів",
     fmt_int(scope_viina["viina_events"].sum()) if viina_has_period_coverage else "—",
 )
 status_cols[2].metric("Днів із повітряними тривогами", fmt_int(alert_days))
@@ -939,11 +1087,24 @@ status_cols[3].metric(
     fmt_int(scope_sirens["alert_count"].sum()) if not scope_sirens.empty else "0",
     help=f"Сумарна тривалість за вибраний період: {fmt_int(alert_hours)} год.",
 )
+if not near_term_risk.empty:
+    risk_leader = near_term_risk.iloc[0]
+    st.markdown(
+        '<div class="risk-callout">'
+        '<div class="risk-kicker">Експериментальна оцінка наступної зафіксованої атаки</div>'
+        f'<div class="risk-value">{escape(str(risk_leader["oblast"]))} · '
+        f'{fmt_pct_points(risk_leader["risk_share_pct"])}</div>'
+        '<div class="risk-note">Це найбільша відносна частка серед областей за поєднанням '
+        'подій за 30 і 90 днів, їхньої свіжості та тривог за 14 днів. Оцінка має низьку '
+        'впевненість, не визначає час або конкретне місце та не замінює офіційні попередження.</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 if is_regional_view:
     st.warning(
         f"{fmt_int(overview_daily['all_events'].sum())} — це не загальна кількість "
-        f"атак на {selected_oblast}. Це лише записи Kaggle, де область була явно "
-        f"зазначена. Загалом за цей період у Kaggle є "
+        "атак у вибраній області. Це лише повідомлення, де область була явно "
+        f"зазначена. Загалом за цей період у реєстрі є "
         f"{fmt_int(filtered_national['attack_records'].sum())} записів по Україні, "
         "але джерело не забезпечує повної регіональної прив'язки."
     )
@@ -977,14 +1138,18 @@ if is_regional_view:
         "вибраного періоду. Це контекст, а не кількість ударів."
     )
 if not viina_has_period_coverage:
-    st.info("VIINA не містить даних за вибраний період. Прочерк означає відсутність даних, а не відсутність інцидентів.")
+    st.info("Реєстр повітряних інцидентів не містить даних за вибраний період. Прочерк означає відсутність даних, а не відсутність інцидентів.")
 elif not viina_daily.empty and (max_day - viina_daily["day"].max()).days > 30:
     st.caption(
-        "VIINA охоплює лише частину вибраного періоду; останній запис: "
+        "Реєстр повітряних інцидентів охоплює лише частину вибраного періоду; останній запис: "
         + viina_daily["day"].max().strftime("%d.%m.%Y") + "."
     )
 if pd.notna(generated_at):
-    st.caption("Знімок даних оновлено: " + generated_at.strftime("%d.%m.%Y %H:%M UTC"))
+    st.caption(
+        "Знімок даних оновлено: "
+        + generated_at.tz_convert("Europe/Kyiv").strftime("%d.%m.%Y %H:%M")
+        + " за київським часом"
+    )
 
 if is_regional_view:
     st.markdown(
@@ -1067,7 +1232,7 @@ overview_tab, interception_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.
         "📈 Огляд",
         "🛡️ Типи атак",
         "🗺️ Області та фото",
-        "📊 Порівняння областей",
+        "🎯 Оцінка ризику",
         "🔎 Джерела й якість",
         "⚙️ Оновлення й навчання",
     ]
@@ -1079,12 +1244,12 @@ with overview_tab:
     source_viina = scope_viina
     st.caption(
         (
-            f"За вибраний період у VIINA є {fmt_int(source_viina['viina_events'].sum())} "
+            f"За вибраний період у реєстрі інцидентів є {fmt_int(source_viina['viina_events'].sum())} "
             "геокодованих повітряних інцидентів. "
             if viina_has_period_coverage else
-            "За вибраний період дані VIINA відсутні. "
+            "За вибраний період дані реєстру інцидентів відсутні. "
         )
-        + "Це окреме джерело, його події не додаються до записів атак Kaggle."
+        + "Це окреме джерело, його події не додаються до повідомлень реєстру атак."
     )
 
     current_period = overview_daily
@@ -1122,7 +1287,11 @@ with overview_tab:
             previous_sirens.loc[previous_sirens["alert_count"] > 0, "day"].nunique()
         )
 
-    st.subheader("Показники Kaggle за вибраний період")
+    st.subheader("Ключові показники за вибраний період")
+    launched_by_type = (
+        period_interception.groupby("category")["launched"].sum()
+        if not period_interception.empty else pd.Series(dtype="float64")
+    )
     s1, s2, s3, s4 = st.columns(4)
     s1.metric(
         "Регіонально позначених записів" if is_regional_view else "Записів атак",
@@ -1137,12 +1306,20 @@ with overview_tab:
         ),
     )
     s3.metric(
-        "Записів про БпЛА",
-        fmt_int(current_period["uav_events"].sum()) if not current_period.empty else "0",
+        "Регіональних повідомлень про БпЛА" if is_regional_view else "Повідомлено запущено БпЛА",
+        (
+            fmt_int(current_period["uav_events"].sum())
+            if is_regional_view and not current_period.empty
+            else fmt_int(launched_by_type.get("uav", 0))
+        ),
     )
     s4.metric(
-        "Записів про ракети",
-        fmt_int(current_period["missile_events"].sum()) if not current_period.empty else "0",
+        "Регіональних повідомлень про ракети" if is_regional_view else "Повідомлено запущено ракет",
+        (
+            fmt_int(current_period["missile_events"].sum())
+            if is_regional_view and not current_period.empty
+            else fmt_int(launched_by_type.get("missile", 0))
+        ),
     )
 
     st.caption(
@@ -1154,7 +1331,7 @@ with overview_tab:
         st.subheader("Що змінилося проти попереднього такого самого періоду")
         comparison = pd.DataFrame([
             {
-                "Показник": "Регіонально позначені записи Kaggle" if is_regional_view else "Записи Kaggle",
+                "Показник": "Регіонально позначені повідомлення" if is_regional_view else "Повідомлення про атаки",
                 "Поточний період": int(current_count),
                 "Попередній період": int(previous_count),
                 "Зміна": pct_change(current_count, previous_count),
@@ -1180,16 +1357,11 @@ with overview_tab:
         )
         st.dataframe(comparison, width="stretch", hide_index=True, row_height=48)
 
-    st.subheader("Календар повітряних тривог")
+    st.subheader("Календар активності повітряних тривог")
     st.caption(
-        "Показано до 90 останніх днів обраного періоду. Колір означає "
-        "кількість тривог за день, а не кількість ударів."
+        "Кожна клітинка — один день. Число всередині — день місяця, "
+        "а насиченість кольору показує кількість тривог."
     )
-    if ACTIVITY_IMAGE_PATH.exists():
-        st.image(
-            str(ACTIVITY_IMAGE_PATH), width="stretch",
-            caption="Декоративна ілюстрація календарної аналітики; фактичні значення наведено нижче.",
-        )
     calendar_end = end_day - pd.Timedelta(days=1)
     calendar_start = max(start_day, calendar_end - pd.Timedelta(days=89))
     calendar_source = scope_sirens[
@@ -1207,6 +1379,24 @@ with overview_tab:
     else:
         calendar_source = pd.DataFrame(columns=["day", "alert_count", "alert_minutes"])
     calendar_days = calendar_days.merge(calendar_source, on="day", how="left").fillna(0)
+    calendar_alert_days = int((calendar_days["alert_count"] > 0).sum())
+    calendar_quiet_days = int((calendar_days["alert_count"] == 0).sum())
+    calendar_alert_total = int(calendar_days["alert_count"].sum())
+    calendar_hours_total = float(calendar_days["alert_minutes"].sum()) / 60
+    calendar_metrics = st.columns(4)
+    calendar_metrics[0].metric("Днів із тривогами", fmt_int(calendar_alert_days))
+    calendar_metrics[1].metric("Днів без зафіксованих тривог", fmt_int(calendar_quiet_days))
+    calendar_metrics[2].metric("Усього тривог", fmt_int(calendar_alert_total))
+    calendar_metrics[3].metric("Загальна тривалість", f"{fmt_int(calendar_hours_total)} год")
+    st.markdown(
+        '<div class="calendar-legend">'
+        '<span><i class="calendar-dot" style="background:#e9eadf"></i> немає записів про тривогу</span>'
+        '<span><i class="calendar-dot" style="background:#a9b49a"></i> помірна активність</span>'
+        '<span><i class="calendar-dot" style="background:#b88742"></i> висока активність</span>'
+        '<span><i class="calendar-dot" style="background:#7b3f32"></i> найбільша активність</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
     calendar_days["week"] = (
         calendar_days["day"] - pd.to_timedelta(calendar_days["day"].dt.weekday, unit="D")
     )
@@ -1215,9 +1405,11 @@ with overview_tab:
     week_values = sorted(calendar_days["week"].unique())
     z = []
     custom = []
+    text_values = []
     for weekday in range(7):
         row_values = []
         row_custom = []
+        row_text = []
         for week in week_values:
             cell = calendar_days[
                 (calendar_days["weekday"] == weekday) & (calendar_days["week"] == week)
@@ -1225,6 +1417,7 @@ with overview_tab:
             if cell.empty:
                 row_values.append(None)
                 row_custom.append(["", 0])
+                row_text.append("")
             else:
                 item = cell.iloc[0]
                 row_values.append(float(item["alert_count"]))
@@ -1232,20 +1425,48 @@ with overview_tab:
                     item["day"].strftime("%d.%m.%Y"),
                     round(float(item["alert_minutes"]) / 60, 1),
                 ])
+                row_text.append(str(int(item["day"].day)))
         z.append(row_values)
         custom.append(row_custom)
+        text_values.append(row_text)
+    month_names = {
+        1: "Січ", 2: "Лют", 3: "Бер", 4: "Кві", 5: "Тра", 6: "Чер",
+        7: "Лип", 8: "Сер", 9: "Вер", 10: "Жов", 11: "Лис", 12: "Гру",
+    }
+    month_ticks = (
+        calendar_days.assign(
+            month=calendar_days["day"].dt.tz_localize(None).dt.to_period("M")
+        )
+        .groupby("month", as_index=False).first()
+    )
+    month_tick_values = month_ticks["week"].tolist()
+    month_tick_labels = [
+        f"{month_names[day.month]} {day.year}"
+        for day in month_ticks["day"]
+    ]
     calendar_chart = go.Figure(go.Heatmap(
-        z=z, x=week_values, y=weekdays, customdata=custom,
-        colorscale=[[0, "#edf4f9"], [.35, "#8fc4da"], [1, "#145d8d"]],
-        xgap=4, ygap=4, colorbar=dict(title="Тривог", tickfont_size=15),
+        z=z, x=week_values, y=weekdays, customdata=custom, text=text_values,
+        texttemplate="%{text}", textfont=dict(size=14, color="#24332b"),
+        colorscale=[
+            [0, "#e9eadf"], [.20, "#cad0bc"], [.45, "#a9b49a"],
+            [.70, "#b88742"], [1, "#7b3f32"],
+        ],
+        xgap=5, ygap=5,
+        colorbar=dict(title="Тривог за день", tickfont_size=15, thickness=16),
         hovertemplate=(
             "%{customdata[0]}<br>Тривог: %{z:.0f}<br>"
             "Тривалість: %{customdata[1]:.1f} год.<extra></extra>"
         ),
     ))
-    style_chart(calendar_chart, height=330)
-    calendar_chart.update_layout(margin=dict(l=25, r=30, t=20, b=45))
-    calendar_chart.update_xaxes(title_text="Тиждень", tickformat="%d.%m", dtick="M1")
+    style_chart(calendar_chart, height=380)
+    calendar_chart.update_layout(margin=dict(l=25, r=35, t=20, b=55))
+    calendar_chart.update_xaxes(
+        title_text=None,
+        tickmode="array",
+        tickvals=month_tick_values,
+        ticktext=month_tick_labels,
+        side="top",
+    )
     calendar_chart.update_yaxes(title_text=None, autorange="reversed", showgrid=False)
     st.plotly_chart(calendar_chart, width="stretch", key="alert_calendar", config={"displayModeBar": False})
 
@@ -1256,7 +1477,7 @@ with overview_tab:
         frequency = chart_frequency(start_day, end_day)
         fig = make_subplots(
             rows=2, cols=1, shared_xaxes=True, vertical_spacing=.18,
-            subplot_titles=("Записи атак · Kaggle", "Повітряні інциденти · VIINA"),
+            subplot_titles=("Повідомлення про атаки", "Повітряні інциденти"),
         )
         for row, source, column, color, fill in (
             (1, overview_daily, "all_events", "#156fa6", "rgba(21,111,166,.19)"),
@@ -1291,19 +1512,28 @@ with overview_tab:
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     st.subheader(
-        "Типи регіонально позначених записів Kaggle"
-        if is_regional_view else "Структура записів за типом"
+        "Типи регіонально позначених повідомлень"
+        if is_regional_view else "Скільки засобів ураження повідомлено запущеними"
     )
-    structure = pd.DataFrame(
-        {
+    if is_regional_view:
+        structure = pd.DataFrame({
             "Категорія": ["БпЛА", "Ракети", "Керовані авіабомби"],
             "Кількість": [
                 float(overview_daily["uav_events"].sum()) if not overview_daily.empty else 0,
                 float(overview_daily["missile_events"].sum()) if not overview_daily.empty else 0,
                 float(overview_daily["guided_bomb_events"].sum()) if not overview_daily.empty else 0,
             ],
-        }
-    )
+        })
+        structure_unit = "Повідомлень"
+    else:
+        structure = pd.DataFrame({
+            "Категорія": ["БпЛА", "Ракети"],
+            "Кількість": [
+                float(launched_by_type.get("uav", 0)),
+                float(launched_by_type.get("missile", 0)),
+            ],
+        })
+        structure_unit = "Засобів"
     structure = structure[structure["Кількість"] > 0].copy()
 
     if structure.empty:
@@ -1317,8 +1547,8 @@ with overview_tab:
             x=structure["Частка, %"], y=structure["Категорія"],
             orientation="h", width=.57,
             marker=dict(color=[
-                {"БпЛА": "#147bb3", "Ракети": "#e4a04b",
-                 "Керовані авіабомби": "#755eaa"}.get(category, "#5786a5")
+                {"БпЛА": "#4f6a57", "Ракети": "#b88742",
+                 "Керовані авіабомби": "#766351"}.get(category, "#65756a")
                 for category in structure["Категорія"]
             ], line_width=0),
             text=[
@@ -1327,11 +1557,11 @@ with overview_tab:
             ],
             textposition="outside", textfont=dict(size=17, color="#213b55"),
             customdata=structure["Кількість"],
-            hovertemplate="%{y}<br>Частка: %{x:.1f}%<br>Записів: %{customdata:,.0f}<extra></extra>",
+            hovertemplate=f"%{{y}}<br>Частка: %{{x:.1f}}%<br>{structure_unit}: %{{customdata:,.0f}}<extra></extra>",
         ))
         style_chart(structure_chart, height=max(230, 75 * len(structure) + 85))
         structure_chart.update_layout(margin=dict(l=22, r=125, t=20, b=40))
-        structure_chart.update_xaxes(range=[0, 108], title_text="Частка записів, %", showgrid=True)
+        structure_chart.update_xaxes(range=[0, 108], title_text="Частка, %", showgrid=True)
         structure_chart.update_yaxes(title_text=None, showgrid=False)
         st.plotly_chart(structure_chart, width="stretch", config={"displayModeBar": False})
 
@@ -1343,6 +1573,15 @@ with overview_tab:
             hide_index=True,
             row_height=48,
         )
+        if not is_regional_view:
+            uav_total = float(launched_by_type.get("uav", 0))
+            missile_total = float(launched_by_type.get("missile", 0))
+            ratio = uav_total / missile_total if missile_total else None
+            if ratio:
+                st.success(
+                    f"У вибраному періоді повідомлено про запуск БпЛА у {ratio:.1f} раза більше, "
+                    "ніж ракет. Раніше панель порівнювала кількість рядків, а не кількість засобів ураження."
+                )
 
 with interception_tab:
     st.subheader("Запущено та заявлено збитими · Україна")
@@ -1353,7 +1592,7 @@ with interception_tab:
             "не приписуються вибраній області."
         )
     st.caption(
-        "Порівнюються лише записи Kaggle, у яких наведено обидві коректні "
+        "Порівнюються лише повідомлення, у яких наведено обидві коректні "
         "кількості: запущено та збито."
     )
 
@@ -1603,8 +1842,8 @@ with regions_tab:
         "Що показати кольором на карті",
         [
             "Частка зафіксованих подій",
-            "Записи атак у Kaggle",
-            "Повітряні інциденти VIINA",
+            "Повідомлення про атаки",
+            "Повітряні інциденти",
             "Повітряні тривоги",
         ],
         horizontal=True,
@@ -1614,11 +1853,11 @@ with regions_tab:
         "Частка зафіксованих подій": (
             "consensus_share_pct", "Частка подій, %", ["#e3eff9", "#72afcf", "#145c90"]
         ),
-        "Записи атак у Kaggle": (
-            "kaggle_events", "Записів Kaggle", ["#eef4fb", "#74a9d2", "#174f80"]
+        "Повідомлення про атаки": (
+            "kaggle_events", "Повідомлень", ["#e8ebe3", "#91a38f", "#3d5948"]
         ),
-        "Повітряні інциденти VIINA": (
-            "viina_events", "Інцидентів VIINA", ["#e9f6f3", "#62b8ad", "#126d68"]
+        "Повітряні інциденти": (
+            "viina_events", "Інцидентів", ["#eee9df", "#a99c83", "#6d5e47"]
         ),
         "Повітряні тривоги": (
             "alert_count", "Повітряних тривог", ["#fff5df", "#efbb64", "#b86d18"]
@@ -1649,8 +1888,8 @@ with regions_tab:
                 },
                 labels={
                     "consensus_share_pct": "Частка зафіксованих подій, %",
-                    "kaggle_events": "Регіонально позначених записів (Kaggle)",
-                    "viina_events": "Повітряних інцидентів (VIINA)",
+                    "kaggle_events": "Регіонально позначених повідомлень",
+                    "viina_events": "Повітряних інцидентів",
                     "alert_count": "Повітряних тривог",
                     "evidence_sources": "Джерел з подіями",
                 },
@@ -1710,8 +1949,8 @@ with regions_tab:
             columns={
                 "oblast": "Область",
                 "consensus_share_pct": "Частка подій, %",
-                "kaggle_events": "Kaggle",
-                "viina_events": "VIINA",
+                "kaggle_events": "Повідомлення",
+                "viina_events": "Інциденти",
                 "alert_count": "Тривоги",
             }
         )
@@ -1763,8 +2002,8 @@ with regions_tab:
                     "записів вибраного періоду. Не є ризиком або прогнозом."
                 ),
             )
-            d2.metric("Регіонально позначених записів (Kaggle)", fmt_int(row["kaggle_events"]))
-            d3.metric("Інцидентів (VIINA)", fmt_int(row["viina_events"]))
+            d2.metric("Регіонально позначених повідомлень", fmt_int(row["kaggle_events"]))
+            d3.metric("Повітряних інцидентів", fmt_int(row["viina_events"]))
             d4.metric("Повітряних тривог", fmt_int(row["alert_count"]))
 
             d5, d6, d7, d8 = st.columns(4)
@@ -1781,7 +2020,7 @@ with regions_tab:
         ][["day", "attack_events"]].copy()
         if not kaggle_region.empty:
             kaggle_region = kaggle_region.rename(
-                columns={"attack_events": "Kaggle: записи атак"}
+                columns={"attack_events": "Повідомлення про атаки"}
             )
 
         viina_region = period_viina_daily[
@@ -1789,17 +2028,17 @@ with regions_tab:
         ][["day", "viina_events"]].copy() if not period_viina_daily.empty else pd.DataFrame()
         if not viina_region.empty:
             viina_region = viina_region.rename(
-                columns={"viina_events": "VIINA: повітряні інциденти"}
+                columns={"viina_events": "Повітряні інциденти"}
             )
 
         if not kaggle_region.empty or not viina_region.empty:
             detail_fig = make_subplots(
                 rows=2, cols=1, shared_xaxes=True, vertical_spacing=.2,
-                subplot_titles=("Записи атак · Kaggle", "Повітряні інциденти · VIINA"),
+                subplot_titles=("Повідомлення про атаки", "Повітряні інциденти"),
             )
             for row_number, frame, column, color, fill in (
-                (1, kaggle_region, "Kaggle: записи атак", "#156fa6", "rgba(21,111,166,.18)"),
-                (2, viina_region, "VIINA: повітряні інциденти", "#158f88", "rgba(21,143,136,.18)"),
+                (1, kaggle_region, "Повідомлення про атаки", "#4f6a57", "rgba(79,106,87,.18)"),
+                (2, viina_region, "Повітряні інциденти", "#81725b", "rgba(129,114,91,.18)"),
             ):
                 if frame.empty:
                     detail_fig.add_annotation(
@@ -1829,17 +2068,71 @@ with regions_tab:
             )
 
         st.caption(
-            "Kaggle та VIINA мають різні методики збору, тому їхні сирі "
+            "Два реєстри мають різні методики збору, тому їхні сирі "
             "кількості не додаються. Показана частка — середнє відносних "
             "часток області у двох джерелах. Це спосіб порівняння минулих "
             "записів, а не оцінка наступної атаки."
         )
 
 with risk_tab:
-    st.subheader("Порівняння областей за зафіксованими подіями")
+    st.subheader("Де найімовірніше буде зафіксована наступна повітряна атака")
+    st.caption(
+        "Експериментальний розподіл відносного ризику між областями. "
+        "Усі відсотки разом дорівнюють 100%. Це не гарантія атаки й не оперативна розвідка."
+    )
+    if not near_term_risk.empty:
+        top_risk = near_term_risk.head(10).sort_values("risk_share_pct")
+        risk_colors = [
+            "#c29a55" if oblast == selected_oblast else "#4f6a57"
+            for oblast in top_risk["oblast"]
+        ]
+        forecast_chart = go.Figure(go.Bar(
+            x=top_risk["risk_share_pct"],
+            y=top_risk["oblast"],
+            orientation="h",
+            marker=dict(color=risk_colors, line_width=0),
+            text=top_risk["risk_share_pct"].map(fmt_pct_points),
+            textposition="outside",
+            hovertemplate="%{y}<br>Відносна оцінка: %{x:.1f}%<extra></extra>",
+        ))
+        style_chart(forecast_chart, height=520)
+        forecast_chart.update_layout(margin=dict(l=20, r=80, t=18, b=42), bargap=.28)
+        forecast_chart.update_xaxes(
+            title_text="Відносна оцінка ризику, %",
+            range=[0, max(1, float(top_risk["risk_share_pct"].max()) * 1.25)],
+        )
+        forecast_chart.update_yaxes(title_text=None, showgrid=False)
+        st.plotly_chart(
+            forecast_chart,
+            width="stretch",
+            key="near_term_risk",
+            config={"displayModeBar": False},
+        )
+        risk_table = near_term_risk.head(10).copy()
+        risk_table.insert(0, "Місце", range(1, len(risk_table) + 1))
+        risk_table["risk_share_pct"] = risk_table["risk_share_pct"].map(fmt_pct_points)
+        risk_table = risk_table.rename(columns={
+            "oblast": "Область",
+            "risk_share_pct": "Орієнтовна частка",
+            "risk_level": "Рівень",
+        })
+        st.dataframe(
+            risk_table[["Місце", "Область", "Орієнтовна частка", "Рівень"]],
+            width="stretch",
+            hide_index=True,
+            row_height=46,
+        )
+        st.markdown(
+            '<div class="plain-language-note"><b>Як читати:</b> значення показує, яка '
+            'частина сукупного відносного ризику припадає на область. Наприклад, 9% — '
+            'це 9 зі 100 умовних балів ризику, а не обіцянка, що атака станеться.</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.subheader("Порівняння областей за вже зафіксованими подіями")
     st.caption(
         "Відсоток показує частку області серед географічно прив'язаних записів "
-        "Kaggle та VIINA за вибраний період. Сирі кількості не додаються, "
+        "двох незалежних реєстрів за вибраний період. Сирі кількості не додаються, "
         "бо джерела по-різному визначають і збирають події."
     )
     st.markdown(
@@ -1868,11 +2161,11 @@ with risk_tab:
             fmt_pct_points(leader["consensus_share_pct"]),
         )
         summary_cols[2].metric(
-            "Kaggle · записів з областю",
+            "Повідомлень із визначеною областю",
             fmt_int(risk_summary["kaggle_events"].sum()),
         )
         summary_cols[3].metric(
-            "VIINA · повітряних інцидентів",
+            "Повітряних інцидентів",
             fmt_int(risk_summary["viina_events"].sum()),
         )
 
@@ -1894,7 +2187,7 @@ with risk_tab:
             textposition="outside", textfont=dict(size=16, color="#243e58"),
             hovertemplate=(
                 "%{y}<br>Частка зафіксованих подій: %{x:.1f}%<br>"
-                "Kaggle: %{customdata[0]:,.0f}<br>VIINA: %{customdata[1]:,.0f}<br>"
+                "Повідомлення: %{customdata[0]:,.0f}<br>Інциденти: %{customdata[1]:,.0f}<br>"
                 "Тривоги: %{customdata[2]:,.0f}<extra></extra>"
             ),
         ))
@@ -1922,17 +2215,17 @@ with risk_tab:
         exact_table = exact_table.rename(columns={
             "oblast": "Область",
             "consensus_share_pct": "Підсумкова частка",
-            "kaggle_events": "Kaggle · подій",
-            "kaggle_share_pct": "Kaggle · частка",
-            "viina_events": "VIINA · подій",
-            "viina_share_pct": "VIINA · частка",
+            "kaggle_events": "Повідомлень",
+            "kaggle_share_pct": "Частка повідомлень",
+            "viina_events": "Інцидентів",
+            "viina_share_pct": "Частка інцидентів",
             "alert_count": "Тривог · контекст",
         })
         st.dataframe(
             exact_table[[
                 "Місце", "Область", "Підсумкова частка",
-                "Kaggle · подій", "Kaggle · частка",
-                "VIINA · подій", "VIINA · частка",
+                "Повідомлень", "Частка повідомлень",
+                "Інцидентів", "Частка інцидентів",
                 "Тривог · контекст", "Підтвердження",
             ]],
             width="stretch", hide_index=True, row_height=48,
@@ -1959,9 +2252,9 @@ with risk_tab:
             )
             compare_chart = go.Figure()
             for column, title, color in (
-                ("kaggle_share_pct", "Kaggle · частка", "#147bb3"),
-                ("viina_share_pct", "VIINA · частка", "#168c84"),
-                ("alert_share_pct", "Тривоги · контекст", "#e4a04b"),
+                ("kaggle_share_pct", "Частка повідомлень", "#4f6a57"),
+                ("viina_share_pct", "Частка інцидентів", "#81725b"),
+                ("alert_share_pct", "Тривоги · контекст", "#b88742"),
             ):
                 compare_chart.add_trace(go.Bar(
                     x=comparison_regions["oblast"],
@@ -2000,7 +2293,7 @@ with risk_tab:
 
         type_left, type_right = st.columns(2, gap="large")
         with type_left:
-            st.markdown("#### Kaggle · записи атак")
+            st.markdown("#### Повідомлення про атаки")
             kaggle_type_table = pd.DataFrame({
                 "Тип": list(kaggle_types.keys()),
                 "Кількість": list(kaggle_types.values()),
@@ -2019,7 +2312,7 @@ with risk_tab:
             st.plotly_chart(kaggle_type_chart, width="stretch", config={"displayModeBar": False})
 
         with type_right:
-            st.markdown("#### VIINA · категорії інцидентів")
+            st.markdown("#### Категорії повітряних інцидентів")
             viina_types = {
                 "БпЛА": int(viina_type_frame["viina_uav_events"].sum()) if not viina_type_frame.empty else 0,
                 "Повітряні удари": int(viina_type_frame["viina_airstrike_events"].sum()) if not viina_type_frame.empty else 0,
@@ -2042,27 +2335,35 @@ with risk_tab:
             st.plotly_chart(viina_type_chart, width="stretch", config={"displayModeBar": False})
 
         st.caption(
-            "Типи з Kaggle та VIINA показані окремо: одна подія VIINA може мати "
+            "Типи з двох реєстрів показані окремо: один інцидент може мати "
             "кілька категорій, тому ці стовпчики не слід додавати між собою."
         )
     else:
         st.warning("За вибраний період немає достатніх регіональних записів для рейтингу.")
 
     st.warning(
-        "Ці відсотки показують розподіл уже зафіксованих історичних подій, а не "
-        "ймовірність наступного удару. Надійний прогноз майбутньої області або "
-        "типу засобу ураження зараз неможливий: лише 6,6% записів Kaggle мають "
-        "регіональну мітку, а VIINA не містить нових записів після 27.08.2025."
+        "Верхній блок — експериментальна відносна оцінка з низькою впевненістю, а нижній — "
+        "розподіл уже зафіксованих історичних подій. Лише 6,6% повідомлень про атаки мають "
+        "регіональну мітку, а реєстр повітряних інцидентів не містить нових записів після 27.08.2025."
     )
 
 with quality_tab:
     st.subheader("Контроль якості даних")
 
     if SOURCES_IMAGE_PATH.exists():
-        st.image(
-            str(SOURCES_IMAGE_PATH), width="stretch",
-            caption="Декоративна ілюстрація перевірки джерел; точні показники наведено нижче.",
-        )
+        image_column, note_column = st.columns([.8, 1.2], gap="large")
+        with image_column:
+            st.image(
+                str(SOURCES_IMAGE_PATH), width="stretch",
+                caption="Перевірка й зіставлення відкритих джерел.",
+            )
+        with note_column:
+            st.markdown(
+                "#### Як система захищає від помилок\n"
+                "Перед показом дані проходять перевірку дат, дублікатів, "
+                "некоректних кількостей і повноти регіональних позначок. "
+                "Неповні дані не видаються за точний прогноз."
+            )
 
     q1, q2, q3, q4 = st.columns(4)
     q1.metric("Критичні помилки", fmt_int(quality.get("blocking_errors")))
