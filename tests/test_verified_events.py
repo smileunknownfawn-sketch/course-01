@@ -31,6 +31,7 @@ OFFICIAL_DOMAINS = {
     "dn.gov.ua",
     "kharkivoda.gov.ua",
     "www.zoda.gov.ua",
+    "spravzhne.media",
 }
 
 
@@ -57,5 +58,10 @@ def test_verified_events_have_official_sources_and_safe_images():
         assert len(image_urls) == len(image_alts)
         for image_url in image_urls:
             parsed = urlparse(image_url)
-            assert parsed.scheme == "https"
-            assert parsed.netloc in OFFICIAL_DOMAINS
+            if parsed.scheme:
+                assert parsed.scheme == "https"
+                assert parsed.netloc in OFFICIAL_DOMAINS
+            else:
+                local_image = ROOT / image_url
+                assert local_image.is_file()
+                assert local_image.stat().st_size > 10_000

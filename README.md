@@ -102,24 +102,28 @@ reliability, and model status. Source dates and definitions are under
 “Джерела та дати останніх записів”. A missing source period is shown as “—”,
 not as zero incidents.
 
-The interface also includes a lightweight decorative hero image, an exact
-source-coverage timeline, a visual equation for launches/interceptions, a
-regional-coverage threshold chart, and a step-by-step learning-cycle diagram.
+The interface also includes a compact visual hero, an exact source-coverage
+timeline, a visible update/verification/learning status, a visual equation for
+launches/interceptions, a regional-coverage threshold chart, and a
+step-by-step learning-cycle diagram.
 Decorative imagery is explicitly separated from factual maps and charts; the
 oblast map continues to use the repository's GeoJSON boundaries.
 
 The dashboard also provides a 90-day air-alert calendar, equal-period
 comparisons, selectable map layers, side-by-side oblast comparison, and a
-transparent observed-activity index that is explicitly not a forecast. Two
-additional optimized illustrations introduce the calendar and source-quality
-sections without presenting decorative artwork as evidence.
+plain-language comparison of already recorded regional activity that is
+explicitly not a forecast. Two additional optimized illustrations introduce
+the calendar and source-quality sections without presenting decorative artwork
+as evidence.
 
 When an oblast is selected, the map section also shows curated official event
 cards from the last 30 days. Each card includes the date, reported weapon
 categories, damage and casualty summary, up to three non-graphic official
 photos, attribution, and a direct source link. Missing cards are explicitly
 described as missing verified publications, not as evidence that no attack
-occurred. See `docs/verified_events.md` for curation and safety rules.
+occurred. Event photographs are cached under `assets/events/`, so the visible
+feed does not depend on third-party hotlinking. See `docs/verified_events.md`
+for curation and safety rules.
 
 See `docs/self_learning.md` for the full lifecycle.
 

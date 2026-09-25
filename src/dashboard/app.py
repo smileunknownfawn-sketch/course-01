@@ -139,9 +139,11 @@ st.markdown(
     [data-testid="stMarkdownContainer"] h2 { font-size: clamp(1.7rem, 2.1vw, 2.15rem); }
     [data-testid="stMarkdownContainer"] h3 { font-size: clamp(1.35rem, 1.7vw, 1.7rem); padding-top: .7rem; }
     .dashboard-hero {
-      text-align: center; padding: 2.55rem 1.5rem 2.25rem; margin-bottom: .8rem;
+      text-align: left; padding: 2.25rem 2rem; margin-bottom: .8rem;
       border: 1px solid #caddec; border-radius: 26px 26px 12px 12px;
-      background: linear-gradient(125deg, rgba(224,241,251,.98), rgba(251,253,255,.98) 62%, rgba(233,245,241,.98));
+      background:
+        radial-gradient(circle at 92% 16%, rgba(50,161,188,.17), transparent 34%),
+        linear-gradient(125deg, rgba(224,241,251,.98), rgba(251,253,255,.98) 62%, rgba(233,245,241,.98));
       box-shadow: 0 14px 45px rgba(19,66,103,.09);
     }
     .dashboard-hero .eyebrow {
@@ -149,14 +151,69 @@ st.markdown(
       letter-spacing: .11em; text-transform: uppercase;
     }
     .dashboard-hero h1 {
-      margin: .65rem auto 1rem; max-width: 950px;
-      color: #123253; font-size: clamp(2.3rem, 4.2vw, 4.15rem);
+      margin: .65rem 0 1rem; max-width: 950px;
+      color: #123253; font-size: clamp(2.3rem, 4vw, 3.85rem);
       line-height: 1.12; font-weight: 800;
     }
     .dashboard-hero p {
-      margin: 0 auto; max-width: 820px;
+      margin: 0; max-width: 820px;
       color: #35516c; font-size: clamp(1.07rem, 1.55vw, 1.3rem);
       line-height: 1.55;
+    }
+    .hero-pills { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1.2rem; }
+    .hero-pill {
+      display: inline-flex; align-items: center; gap: .4rem;
+      padding: .46rem .75rem; border-radius: 999px;
+      color: #194c68; background: rgba(255,255,255,.82);
+      border: 1px solid #c8dfeb; font-size: .96rem; font-weight: 750;
+    }
+    .system-status {
+      display: grid; grid-template-columns: 1.25fr repeat(3, 1fr);
+      gap: .7rem; margin: 1rem 0 1.3rem; padding: .9rem;
+      color: #eaf7ff; background: linear-gradient(120deg, #123e62, #0d6380 58%, #17796f);
+      border-radius: 18px; box-shadow: 0 10px 28px rgba(17,64,94,.17);
+    }
+    .status-cell { padding: .35rem .55rem; }
+    .status-cell + .status-cell { border-left: 1px solid rgba(255,255,255,.18); }
+    .status-label { color: #b9ddea; font-size: .9rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    .status-value { margin-top: .2rem; font-size: 1.05rem; font-weight: 800; line-height: 1.35; }
+    .learning-flow {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .65rem; margin: 1rem 0 1.45rem;
+    }
+    .learning-step {
+      position: relative; min-height: 112px; padding: .95rem 1rem;
+      background: linear-gradient(145deg, #ffffff, #f4f9fd);
+      border: 1px solid #d3e2ee; border-radius: 16px;
+    }
+    .learning-step:not(:last-child)::after {
+      content: "→"; position: absolute; right: -.56rem; top: 42%; z-index: 2;
+      color: #247ea4; font-size: 1.25rem; font-weight: 900;
+    }
+    .learning-icon { font-size: 1.45rem; }
+    .learning-title { margin-top: .25rem; color: #163d5d; font-size: 1.04rem; font-weight: 850; }
+    .learning-note { margin-top: .15rem; color: #587085; font-size: .95rem; line-height: 1.4; }
+    .event-heading {
+      margin: .2rem 0 1rem; padding: 1rem 1.15rem;
+      color: #153b59; background: linear-gradient(100deg, #eaf6fb, #f7fbfd);
+      border-left: 6px solid #177ca9; border-radius: 10px 16px 16px 10px;
+    }
+    .event-heading strong { display: block; font-size: 1.28rem; }
+    .event-heading span { display: block; margin-top: .25rem; color: #4c687f; font-size: 1rem; }
+    .event-facts {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .65rem; margin: .7rem 0 1rem;
+    }
+    .event-fact {
+      padding: .78rem .85rem; background: #f4f8fc;
+      border: 1px solid #dbe7f0; border-radius: 13px;
+      color: #274760; font-size: 1rem; line-height: 1.45;
+    }
+    .event-fact b { display: block; margin-bottom: .18rem; color: #153f60; }
+    .plain-language-note {
+      margin: .75rem 0 1rem; padding: .9rem 1rem;
+      color: #4b3f21; background: #fff8e9;
+      border: 1px solid #efd49a; border-radius: 14px; line-height: 1.5;
     }
     [data-testid="stImage"] {
       margin-bottom: 1.15rem;
@@ -288,6 +345,10 @@ st.markdown(
       .reading-guide { grid-template-columns: 1fr; }
       .process-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .process-step::after { display: none; }
+      .system-status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .status-cell + .status-cell { border-left: 0; }
+      .learning-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .learning-step::after { display: none; }
     }
     @media (max-width: 760px) {
       .block-container { padding: .8rem .7rem 2rem; }
@@ -298,6 +359,7 @@ st.markdown(
       .visual-equation { grid-template-columns: 1fr; }
       .equation-sign { transform: rotate(90deg); line-height: .7; }
       .process-flow { grid-template-columns: 1fr; }
+      .system-status, .learning-flow, .event-facts { grid-template-columns: 1fr; }
     }
     @media (max-width: 410px) {
       .stTabs [data-baseweb="tab-list"] { grid-template-columns: 1fr; }
@@ -411,6 +473,118 @@ def parse_dates(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return result
 
 
+def pipe_values(value: object) -> list[str]:
+    """Split a pipe-delimited dashboard field into clean values."""
+    if value is None or pd.isna(value):
+        return []
+    return [item.strip() for item in str(value).split("|") if item.strip()]
+
+
+def event_image_source(reference: str) -> str:
+    """Resolve repository-backed event photos while keeping URL support."""
+    if reference.startswith(("https://", "http://")):
+        return reference
+    return str(ROOT_DIR / reference)
+
+
+def verified_event_slice(
+    events: pd.DataFrame,
+    *,
+    window_end: pd.Timestamp,
+    oblast: str | None = None,
+) -> pd.DataFrame:
+    """Return verified event cards from the rolling 30-day editorial window."""
+    if events.empty:
+        return events.copy()
+    window_start = window_end - pd.Timedelta(days=29)
+    mask = (
+        events["date"].between(window_start, window_end)
+        & events["is_verified"].astype(str).str.lower().eq("true")
+    )
+    if oblast:
+        mask &= events["oblast"].eq(oblast)
+    return events.loc[mask].sort_values("date", ascending=False).copy()
+
+
+def render_verified_events(
+    events: pd.DataFrame,
+    *,
+    empty_message: str,
+    max_events: int = 4,
+    photo_limit: int = 3,
+    show_metrics: bool = True,
+) -> None:
+    """Render readable source-linked event cards with locally cached photos."""
+    if events.empty:
+        st.info(empty_message)
+        return
+
+    visible = events.head(max_events)
+    photo_count = int(
+        visible["image_urls"].fillna("").map(lambda value: len(pipe_values(value))).sum()
+    )
+    if show_metrics:
+        metric_columns = st.columns(3)
+        metric_columns[0].metric("Перевірених повідомлень", fmt_int(len(events)))
+        metric_columns[1].metric(
+            "Офіційних першоджерел", fmt_int(events["source_name"].nunique())
+        )
+        metric_columns[2].metric("Фотографій у добірці", fmt_int(photo_count))
+
+    for _, event in visible.iterrows():
+        with st.container(border=True):
+            st.markdown(
+                '<div class="event-heading">'
+                f'<strong>{event["date"]:%d.%m.%Y} · {escape(str(event["title"]))}</strong>'
+                f'<span>{escape(str(event["oblast"]))} · перевірено за опублікованим джерелом</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            st.write(str(event["summary"]))
+            st.markdown(
+                '<div class="event-facts">'
+                f'<div class="event-fact"><b>Чим атакували</b>{escape(str(event["attack_types"]))}</div>'
+                f'<div class="event-fact"><b>Що пошкоджено</b>{escape(str(event["damage"]))}</div>'
+                f'<div class="event-fact"><b>Людські наслідки</b>{escape(str(event["casualties"]))}</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
+            image_urls = pipe_values(event.get("image_urls"))[:photo_limit]
+            image_alts = pipe_values(event.get("image_alts"))
+            if image_urls:
+                photo_columns = st.columns(len(image_urls), gap="medium")
+                for photo_index, image_reference in enumerate(image_urls):
+                    caption = (
+                        image_alts[photo_index]
+                        if photo_index < len(image_alts)
+                        else "Фото наслідків із вказаного джерела"
+                    )
+                    with photo_columns[photo_index]:
+                        st.image(
+                            event_image_source(image_reference),
+                            width="stretch",
+                            caption=caption,
+                        )
+            else:
+                st.caption(
+                    "Для цього повідомлення не знайдено фото, яке можна "
+                    "коректно показати в добірці. Текст і посилання перевірено."
+                )
+
+            source_left, source_right = st.columns([2, 1])
+            source_left.caption(
+                f"Джерело: {event['source_name']} · "
+                f"умови фото: {event['image_license']}"
+            )
+            with source_right:
+                st.link_button(
+                    "Переглянути першоджерело",
+                    str(event["source_url"]),
+                    width="stretch",
+                )
+
+
 def translate_reason(reason: object) -> str:
     text = str(reason)
     if text in READINESS_REASON_UA:
@@ -475,21 +649,29 @@ if "attack_type" in weapon_summary.columns:
         )
     )
 
-st.markdown(
-    """<section class="dashboard-hero" aria-labelledby="dashboard-title">
-      <div class="eyebrow">Відкриті історичні дані</div>
-      <h1 id="dashboard-title">Аналітика атак по Україні</h1>
-      <p>Досліджуйте записи про атаки, заявлені збиття та дані за областями.
-      Оберіть період і область нижче, щоб побачити потрібну інформацію.</p>
-    </section>""",
-    unsafe_allow_html=True,
-)
-if HERO_IMAGE_PATH.exists():
-    st.image(
-        str(HERO_IMAGE_PATH),
-        width="stretch",
-        caption="Декоративна ілюстрація: історичні дані та аналітика. Не є оперативною картою.",
+hero_text, hero_visual = st.columns([1.18, .82], gap="medium")
+with hero_text:
+    st.markdown(
+        """<section class="dashboard-hero" aria-labelledby="dashboard-title">
+          <div class="eyebrow">Перевірені відкриті джерела</div>
+          <h1 id="dashboard-title">Що відбувалося в областях України</h1>
+          <p>Оберіть область і одразу побачите зафіксовані події, типи атак,
+          наслідки, фотографії та посилання на першоджерела.</p>
+          <div class="hero-pills">
+            <span class="hero-pill">🗺️ Інтерактивна карта</span>
+            <span class="hero-pill">📷 Фото наслідків</span>
+            <span class="hero-pill">🔎 Перевірка джерел</span>
+          </div>
+        </section>""",
+        unsafe_allow_html=True,
     )
+with hero_visual:
+    if HERO_IMAGE_PATH.exists():
+        st.image(
+            str(HERO_IMAGE_PATH),
+            width="stretch",
+            caption="Ілюстрація аналітичної панелі; не є оперативною картою.",
+        )
 
 if not metadata or national_daily.empty:
     st.error(
@@ -505,6 +687,37 @@ latest_source = pd.to_datetime(
 
 quality = metadata.get("quality") or {}
 learning = metadata.get("learning") or {}
+events_window_end = (
+    generated_at.normalize()
+    if pd.notna(generated_at) else pd.Timestamp.now(tz="UTC").normalize()
+)
+recent_verified_events = verified_event_slice(
+    verified_events,
+    window_end=events_window_end,
+)
+
+updated_label = (
+    generated_at.strftime("%d.%m.%Y · %H:%M UTC")
+    if pd.notna(generated_at) else "час не вказано"
+)
+learning_status = (
+    "готова до показу"
+    if learning.get("model_ready_for_serving")
+    else "очікує повніших даних"
+)
+st.markdown(
+    '<div class="system-status" aria-label="Стан системи">'
+    f'<div class="status-cell"><div class="status-label">Останнє оновлення</div>'
+    f'<div class="status-value">{updated_label}</div></div>'
+    '<div class="status-cell"><div class="status-label">Збір</div>'
+    '<div class="status-value">Кілька відкритих джерел</div></div>'
+    '<div class="status-cell"><div class="status-label">Перевірка</div>'
+    '<div class="status-value">Автоматична + редакційна</div></div>'
+    f'<div class="status-cell"><div class="status-label">Навчання моделі</div>'
+    f'<div class="status-value">{learning_status}</div></div>'
+    '</div>',
+    unsafe_allow_html=True,
+)
 
 geojson = load_geojson()
 map_oblasts = [
@@ -520,6 +733,20 @@ for frame in (oblast_daily, viina_daily, siren_daily):
 pending_oblast = st.session_state.pop("pending_oblast", None)
 if pending_oblast in known_oblasts:
     st.session_state["selected_oblast"] = pending_oblast
+    st.session_state["region_quick"] = pending_oblast
+
+
+def sync_main_oblast_to_quick() -> None:
+    value = st.session_state.get("selected_oblast", "Усі області")
+    st.session_state["region_quick"] = (
+        value if value in known_oblasts else "Оберіть область"
+    )
+
+
+def sync_quick_to_main() -> None:
+    value = st.session_state.get("region_quick")
+    if value in known_oblasts:
+        st.session_state["selected_oblast"] = value
 
 min_day = min(
     frame["day"].min()
@@ -542,6 +769,7 @@ with st.container(border=True):
         selected_oblast = st.selectbox(
             "2. Область", oblast_options, key="selected_oblast",
             help="Оберіть область тут або натисніть на неї на карті в розділі «Карта областей».",
+            on_change=sync_main_oblast_to_quick,
         )
 
     if period_mode == "Останні 30 днів":
@@ -719,41 +947,34 @@ if is_regional_view:
         f"{fmt_int(filtered_national['attack_records'].sum())} записів по Україні, "
         "але джерело не забезпечує повної регіональної прив'язки."
     )
-    activity_preview = build_oblast_consensus(
-        sorted(known_oblasts), period_oblast_daily, period_viina_daily, period_siren_daily
-    )
-    selected_preview = activity_preview[
-        activity_preview["oblast"] == selected_oblast
-    ]
     period_day_count = max(1, int((end_day - start_day).days))
     alert_day_rate = min(100.0, alert_days / period_day_count * 100)
-    if not selected_preview.empty and len(activity_preview) > 1:
-        preview_rank = int(selected_preview.index[0]) + 1
-        historical_percentile = 100 * (
-            1 - (preview_rank - 1) / (len(activity_preview) - 1)
-        )
-    else:
-        preview_rank = 0
-        historical_percentile = 0.0
-    observed_activity_index = .6 * alert_day_rate + .4 * historical_percentile
+    selected_recent_events = verified_event_slice(
+        verified_events,
+        window_end=events_window_end,
+        oblast=selected_oblast,
+    )
+    selected_photo_count = int(
+        selected_recent_events["image_urls"].fillna("").map(
+            lambda value: len(pipe_values(value))
+        ).sum()
+    ) if not selected_recent_events.empty else 0
     index_cols = st.columns(3)
     index_cols[0].metric(
-        "Індекс зафіксованої активності · не прогноз",
-        f"{observed_activity_index:.0f} / 100",
-        help="60% — частка днів із тривогами; 40% — місце області в історичному мультиджерельному рейтингу.",
+        "Днів із тривогами у вибраному періоді",
+        f"{alert_days} із {period_day_count}",
     )
     index_cols[1].metric(
-        "Днів із тривогами",
-        fmt_pct_points(alert_day_rate),
-        help=f"{alert_days} із {period_day_count} днів вибраного періоду.",
+        "Перевірених повідомлень за 30 днів",
+        fmt_int(len(selected_recent_events)),
     )
     index_cols[2].metric(
-        "Повнота регіональних міток Kaggle",
-        fmt_pct(quality.get("region_coverage_rate")),
+        "Фотографій наслідків",
+        fmt_int(selected_photo_count),
     )
     st.caption(
-        f"Рівень зафіксованої активності: {activity_level(observed_activity_index)}. "
-        "Це опис уже зафіксованих даних, а не ймовірність наступної атаки."
+        f"Повітряні тривоги фіксувалися у {fmt_pct_points(alert_day_rate)} днів "
+        "вибраного періоду. Це контекст, а не кількість ударів."
     )
 if not viina_has_period_coverage:
     st.info("VIINA не містить даних за вибраний період. Прочерк означає відсутність даних, а не відсутність інцидентів.")
@@ -764,6 +985,46 @@ elif not viina_daily.empty and (max_day - viina_daily["day"].max()).days > 30:
     )
 if pd.notna(generated_at):
     st.caption("Знімок даних оновлено: " + generated_at.strftime("%d.%m.%Y %H:%M UTC"))
+
+if is_regional_view:
+    st.markdown(
+        '<div class="event-heading">'
+        f'<strong>Останні підтверджені наслідки · {escape(selected_oblast)}</strong>'
+        '<span>Події за 30 днів із фото, описом наслідків і посиланням на джерело.</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    render_verified_events(
+        selected_recent_events,
+        empty_message=(
+            "Для цієї області в поточній редакційній добірці ще немає "
+            "перевіреного фотоматеріалу за останні 30 днів. Це не означає, "
+            "що атак не було."
+        ),
+        max_events=1,
+        photo_limit=1,
+        show_metrics=False,
+    )
+else:
+    st.markdown(
+        '<div class="event-heading">'
+        '<strong>Останні підтверджені події з фотографіями</strong>'
+        '<span>Оберіть область вище або на карті, щоб відкрити її окрему стрічку.</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    featured_events = (
+        recent_verified_events[recent_verified_events["image_urls"].fillna("").ne("")]
+        .drop_duplicates("oblast")
+        .head(3)
+    )
+    render_verified_events(
+        featured_events,
+        empty_message="Фотодобірка ще формується.",
+        max_events=3,
+        photo_limit=1,
+        show_metrics=False,
+    )
 
 st.markdown(
     """<div class="reading-guide" aria-label="Як користуватися панеллю">
@@ -786,15 +1047,29 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown(
+    """<div class="learning-flow" aria-label="Як оновлюється система">
+      <div class="learning-step"><div class="learning-icon">🌐</div>
+      <div class="learning-title">1. Збирає</div><div class="learning-note">Бере історичні дані з кількох відкритих джерел.</div></div>
+      <div class="learning-step"><div class="learning-icon">✅</div>
+      <div class="learning-title">2. Перевіряє</div><div class="learning-note">Шукає дублікати, пропуски й суперечності.</div></div>
+      <div class="learning-step"><div class="learning-icon">🔄</div>
+      <div class="learning-title">3. Оновлює</div><div class="learning-note">Перебудовує показники та фотодобірку.</div></div>
+      <div class="learning-step"><div class="learning-icon">🧠</div>
+      <div class="learning-title">4. Навчається обережно</div><div class="learning-note">Модель запускається лише коли даних достатньо.</div></div>
+    </div>""",
+    unsafe_allow_html=True,
+)
+
 st.markdown("### Оберіть розділ")
 overview_tab, interception_tab, regions_tab, risk_tab, quality_tab, ml_tab = st.tabs(
     [
-        "📈 Загальна картина",
-        "🛡️ Запуски та збиття",
-        "🗺️ Карта областей",
-        "📊 Історична активність",
-        "🔎 Надійність даних",
-        "⚙️ Стан моделі",
+        "📈 Огляд",
+        "🛡️ Типи атак",
+        "🗺️ Області та фото",
+        "📊 Порівняння областей",
+        "🔎 Джерела й якість",
+        "⚙️ Оновлення й навчання",
     ]
 )
 
@@ -1237,10 +1512,55 @@ with interception_tab:
             )
 
 with regions_tab:
-    st.subheader("Карта України за областями")
+    st.subheader("Область: події, фотографії та статистика")
     st.caption(
-        "Карта завжди показує всі адміністративні регіони. Наведи курсор на "
-        "область, щоб побачити дані з окремих джерел та узгоджену історичну частку."
+        "Оберіть область у списку або натисніть її на карті. Спочатку побачите "
+        "останні підтверджені наслідки, а нижче — історичну статистику."
+    )
+
+    quick_options = ["Оберіть область", *sorted(known_oblasts)]
+    if "region_quick" not in st.session_state:
+        st.session_state["region_quick"] = (
+            selected_oblast if selected_oblast != "Усі області" else "Оберіть область"
+        )
+    region_quick = st.selectbox(
+        "Область для детального перегляду",
+        quick_options,
+        key="region_quick",
+        help="Вибір у цьому полі синхронізується з основним фільтром угорі.",
+        on_change=sync_quick_to_main,
+    )
+
+    detail_oblast = selected_oblast if selected_oblast != "Усі області" else None
+    if detail_oblast:
+        region_events = verified_event_slice(
+            verified_events,
+            window_end=events_window_end,
+            oblast=detail_oblast,
+        )
+        st.markdown(
+            '<div class="event-heading">'
+            f'<strong>Стрічка наслідків · {escape(detail_oblast)}</strong>'
+            '<span>Перевірені повідомлення за останні 30 днів. До трьох фото на подію.</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        render_verified_events(
+            region_events,
+            empty_message=(
+                "Поки що для цієї області немає перевіреного фотоматеріалу "
+                "в редакційній добірці за останні 30 днів. Нижче все одно "
+                "доступна історична статистика."
+            ),
+            max_events=4,
+            photo_limit=3,
+        )
+        st.divider()
+
+    st.subheader("Карта України")
+    st.caption(
+        "Колір показує відносну частку вже зафіксованих подій або окремий "
+        "показник вибраного джерела. Це не прогноз і не ймовірність атаки."
     )
     st.caption("Межі: OpenStreetMap (ODbL), набір ukraine-geo-data. Міста Київ і Севастополь не мають окремих контурів у цьому наборі.")
 
@@ -1282,22 +1602,22 @@ with regions_tab:
     map_mode = st.radio(
         "Що показати кольором на карті",
         [
-            "Узгоджена історична частка",
-            "Регіональні записи Kaggle",
-            "Інциденти VIINA",
+            "Частка зафіксованих подій",
+            "Записи атак у Kaggle",
+            "Повітряні інциденти VIINA",
             "Повітряні тривоги",
         ],
         horizontal=True,
         help="Тривоги показуються окремим режимом і не вважаються підтвердженими ударами.",
     )
     map_modes = {
-        "Узгоджена історична частка": (
-            "consensus_share_pct", "Узгоджена частка, %", ["#e3eff9", "#72afcf", "#145c90"]
+        "Частка зафіксованих подій": (
+            "consensus_share_pct", "Частка подій, %", ["#e3eff9", "#72afcf", "#145c90"]
         ),
-        "Регіональні записи Kaggle": (
+        "Записи атак у Kaggle": (
             "kaggle_events", "Записів Kaggle", ["#eef4fb", "#74a9d2", "#174f80"]
         ),
-        "Інциденти VIINA": (
+        "Повітряні інциденти VIINA": (
             "viina_events", "Інцидентів VIINA", ["#e9f6f3", "#62b8ad", "#126d68"]
         ),
         "Повітряні тривоги": (
@@ -1328,7 +1648,7 @@ with regions_tab:
                     "evidence_sources": True,
                 },
                 labels={
-                    "consensus_share_pct": "Узгоджена історична частка, %",
+                    "consensus_share_pct": "Частка зафіксованих подій, %",
                     "kaggle_events": "Регіонально позначених записів (Kaggle)",
                     "viina_events": "Повітряних інцидентів (VIINA)",
                     "alert_count": "Повітряних тривог",
@@ -1372,7 +1692,8 @@ with regions_tab:
             )
 
     with right:
-        st.subheader("Узгоджений рейтинг")
+        st.subheader("Порівняння областей")
+        st.caption("Натисніть рядок, щоб відкрити область і її фотострічку.")
         table = consensus[
             [
                 "oblast",
@@ -1388,7 +1709,7 @@ with regions_tab:
         table = table.rename(
             columns={
                 "oblast": "Область",
-                "consensus_share_pct": "Консенсус, %",
+                "consensus_share_pct": "Частка подій, %",
                 "kaggle_events": "Kaggle",
                 "viina_events": "VIINA",
                 "alert_count": "Тривоги",
@@ -1428,15 +1749,19 @@ with regions_tab:
 
     if detail_oblast:
         st.divider()
-        st.subheader(f"{detail_oblast}: детальна історична аналітика")
+        st.subheader(f"{detail_oblast}: статистика за вибраний період")
         row = consensus[consensus["oblast"] == detail_oblast]
 
         if not row.empty:
             row = row.iloc[0]
             d1, d2, d3, d4 = st.columns(4)
             d1.metric(
-                "Узгоджена історична частка",
+                "Частка зафіксованих подій",
                 fmt_pct_points(row["consensus_share_pct"]),
+                help=(
+                    "Відносна частка області серед усіх географічно прив'язаних "
+                    "записів вибраного періоду. Не є ризиком або прогнозом."
+                ),
             )
             d2.metric("Регіонально позначених записів (Kaggle)", fmt_int(row["kaggle_events"]))
             d3.metric("Інцидентів (VIINA)", fmt_int(row["viina_events"]))
@@ -1505,94 +1830,23 @@ with regions_tab:
 
         st.caption(
             "Kaggle та VIINA мають різні методики збору, тому їхні сирі "
-            "кількості не додаються. Консенсус — середнє нормалізованих "
-            "часток кожного незалежного джерела."
+            "кількості не додаються. Показана частка — середнє відносних "
+            "часток області у двох джерелах. Це спосіб порівняння минулих "
+            "записів, а не оцінка наступної атаки."
         )
-
-        st.divider()
-        st.subheader(f"Підтверджені події за останні 30 днів · {detail_oblast}")
-        st.caption(
-            "Лише ретроспективні повідомлення офіційних органів. Фото можуть "
-            "показувати пожежі та руйнування, але не містять зображень загиблих "
-            "або впізнаваних постраждалих."
-        )
-        events_end = (
-            generated_at.normalize()
-            if pd.notna(generated_at) else pd.Timestamp.now(tz="UTC").normalize()
-        )
-        events_start = events_end - pd.Timedelta(days=29)
-        regional_events = verified_events[
-            verified_events["oblast"].eq(detail_oblast)
-            & verified_events["date"].between(events_start, events_end)
-            & verified_events["is_verified"].astype(str).str.lower().eq("true")
-        ].copy() if not verified_events.empty else verified_events.copy()
-        regional_events = regional_events.sort_values("date", ascending=False)
-
-        if regional_events.empty:
-            st.info(
-                "У поточному знімку немає перевіреної офіційної публікації "
-                "з безпечною фотографією за останні 30 днів. Це не означає, "
-                "що атак не було."
-            )
-        else:
-            event_photo_count = int(
-                regional_events["image_urls"].fillna("").map(
-                    lambda value: len([url for url in str(value).split("|") if url])
-                ).sum()
-            )
-            event_sources = int(regional_events["source_name"].nunique())
-            event_metrics = st.columns(3)
-            event_metrics[0].metric("Підтверджених публікацій", fmt_int(len(regional_events)))
-            event_metrics[1].metric("Офіційних джерел", fmt_int(event_sources))
-            event_metrics[2].metric("Фотографій", fmt_int(event_photo_count))
-
-            for _, event in regional_events.iterrows():
-                with st.container(border=True):
-                    st.markdown(
-                        f"### {event['date']:%d.%m.%Y} · {event['title']}"
-                    )
-                    st.markdown(f"**Типи ураження:** {event['attack_types']}")
-                    st.write(str(event["summary"]))
-                    st.markdown(f"**Пошкодження:** {event['damage']}")
-                    st.markdown(f"**Людські наслідки:** {event['casualties']}")
-
-                    image_urls = [
-                        url for url in str(event.get("image_urls") or "").split("|")
-                        if url and url.lower() != "nan"
-                    ]
-                    image_alts = [
-                        alt for alt in str(event.get("image_alts") or "").split("|")
-                        if alt and alt.lower() != "nan"
-                    ]
-                    if image_urls:
-                        photo_columns = st.columns(min(3, len(image_urls)), gap="medium")
-                        for photo_index, image_url in enumerate(image_urls[:3]):
-                            with photo_columns[photo_index]:
-                                caption = (
-                                    image_alts[photo_index]
-                                    if photo_index < len(image_alts)
-                                    else "Фото з офіційного джерела"
-                                )
-                                st.image(image_url, width="stretch", caption=caption)
-
-                    source_left, source_right = st.columns([2, 1])
-                    source_left.caption(
-                        f"Джерело: {event['source_name']} · "
-                        f"ліцензія/умови: {event['image_license']}"
-                    )
-                    with source_right:
-                        st.link_button(
-                            "Відкрити офіційне повідомлення",
-                            str(event["source_url"]),
-                            width="stretch",
-                        )
 
 with risk_tab:
-    st.subheader("Конкретна статистика за областями та типами")
+    st.subheader("Порівняння областей за зафіксованими подіями")
     st.caption(
-        "Підсумкова історична частка — середнє частки області у Kaggle та "
-        "частки області у VIINA за вибраний період. Сирі кількості не "
-        "додаються, бо джерела по-різному визначають і збирають події."
+        "Відсоток показує частку області серед географічно прив'язаних записів "
+        "Kaggle та VIINA за вибраний період. Сирі кількості не додаються, "
+        "бо джерела по-різному визначають і збирають події."
+    )
+    st.markdown(
+        '<div class="plain-language-note"><b>Простими словами:</b> якщо область має 12%, '
+        'це означає, що приблизно 12 зі 100 порівнюваних записів у цій вибірці '
+        'припадають на неї. Це не 12% імовірності наступної атаки.</div>',
+        unsafe_allow_html=True,
     )
 
     risk_summary = build_oblast_consensus(
@@ -1606,11 +1860,11 @@ with risk_tab:
         leader = risk_summary.iloc[0]
         summary_cols = st.columns(4)
         summary_cols[0].metric(
-            "Найбільша історична частка",
+            "Найбільше зафіксованої активності",
             str(leader["oblast"]).replace(" область", ""),
         )
         summary_cols[1].metric(
-            "Частка області-лідера",
+            "Частка подій області-лідера",
             fmt_pct_points(leader["consensus_share_pct"]),
         )
         summary_cols[2].metric(
@@ -1622,7 +1876,7 @@ with risk_tab:
             fmt_int(risk_summary["viina_events"].sum()),
         )
 
-        st.subheader("Рейтинг областей за історичною часткою")
+        st.subheader("Де зафіксовано найбільшу частку подій")
         ranked = risk_summary.head(15).sort_values("consensus_share_pct")
         max_share = float(ranked["consensus_share_pct"].max())
         colors = [
@@ -1639,7 +1893,7 @@ with risk_tab:
             text=[fmt_pct_points(value) for value in ranked["consensus_share_pct"]],
             textposition="outside", textfont=dict(size=16, color="#243e58"),
             hovertemplate=(
-                "%{y}<br>Узгоджена частка: %{x:.1f}%<br>"
+                "%{y}<br>Частка зафіксованих подій: %{x:.1f}%<br>"
                 "Kaggle: %{customdata[0]:,.0f}<br>VIINA: %{customdata[1]:,.0f}<br>"
                 "Тривоги: %{customdata[2]:,.0f}<extra></extra>"
             ),
@@ -1647,7 +1901,7 @@ with risk_tab:
         style_chart(risk_chart, height=650)
         risk_chart.update_layout(margin=dict(l=20, r=70, t=20, b=42), bargap=.3)
         risk_chart.update_xaxes(
-            range=[0, max(1, max_share * 1.22)], title_text="Узгоджена частка, %"
+            range=[0, max(1, max_share * 1.22)], title_text="Частка зафіксованих подій, %"
         )
         risk_chart.update_yaxes(title_text=None, showgrid=False)
         st.plotly_chart(risk_chart, width="stretch", config={"displayModeBar": False})

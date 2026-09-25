@@ -12,8 +12,11 @@ information, not operational reporting or forecasting.
 - `title`, `attack_types`, `summary`, `damage`, `casualties`: concise Ukrainian
   summaries that do not add claims beyond the source.
 - `source_name`, `source_url`: official OVA, local authority, or DSNS page.
-- `image_urls`, `image_alts`: pipe-separated official images and matching alt
-  text. Leave both empty when the official publication has no suitable image.
+- `image_urls`, `image_alts`: pipe-separated HTTPS image URLs or repository
+  paths under `assets/events/`, plus matching alt text. Repository paths are
+  preferred after the source and reuse terms have been verified because they
+  prevent broken hotlinks. Leave both fields empty when there is no suitable
+  image.
 - `image_license`: the source's stated license or usage note.
 - `is_verified`: `true` only after a human checked the page, date, oblast,
   summary, and images.

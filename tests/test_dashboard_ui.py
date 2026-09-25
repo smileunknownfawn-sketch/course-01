@@ -36,7 +36,7 @@ def test_period_and_oblast_controls_update_the_summary():
     }.issubset(chart_by_key)
     assert _metric(app, "Kaggle · записів з областю") != "—"
     assert _metric(app, "VIINA · повітряних інцидентів") != "—"
-    assert _metric(app, "Частка області-лідера").endswith("%")
+    assert _metric(app, "Частка подій області-лідера").endswith("%")
     coverage_spec = json.loads(chart_by_key["source_coverage"].proto.spec)
     assert coverage_spec["layout"]["font"]["size"] >= 18
     assert any("2025-08-27" in str(trace["x"]) for trace in coverage_spec["data"])
@@ -56,9 +56,10 @@ def test_period_and_oblast_controls_update_the_summary():
     ].sum())
     assert _metric(app, "Регіонально позначених записів · Kaggle") == _format_count(expected_regional)
     assert _metric(app, "Днів із повітряними тривогами") != "0"
-    assert _metric(app, "Індекс зафіксованої активності · не прогноз").endswith("/ 100")
-    assert _metric(app, "Підтверджених публікацій") == "1"
-    assert _metric(app, "Фотографій") == "2"
+    assert _metric(app, "Перевірених повідомлень за 30 днів") == "1"
+    assert _metric(app, "Фотографій наслідків") == "2"
+    assert _metric(app, "Перевірених повідомлень") == "1"
+    assert _metric(app, "Фотографій у добірці") == "2"
     assert any(
         "Удари реактивними БпЛА спричинили масштабні пожежі" in item.value
         for item in app.markdown
