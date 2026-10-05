@@ -1,22 +1,22 @@
 {
-  "generated_at": "2026-09-28T03:18:12.425654+00:00",
-  "latest_source_event_at": "2026-09-25T18:00:00+00:00",
+  "generated_at": "2026-10-05T03:19:07.307526+00:00",
+  "latest_source_event_at": "2026-10-03T18:00:00+00:00",
   "source_name": "Massive Missile Attacks on Ukraine (Kaggle / piterfm)",
   "source_scope": "Historical public aggregate data",
-  "attack_rows": 4175,
-  "region_links": 1033,
-  "weapon_rows": 4175,
+  "attack_rows": 4202,
+  "region_links": 1050,
+  "weapon_rows": 4202,
   "quality": {
-    "attack_rows": 4175,
-    "region_rows": 1033,
-    "weapon_rows": 4175,
-    "attacks_with_region": 280,
-    "region_coverage_rate": 0.06706586826347305,
-    "recent_attack_rows_90d": 344,
-    "recent_attacks_with_region_90d": 36,
-    "recent_region_coverage_90d": 0.10465116279069768,
-    "latest_attack_date": "2026-09-25T18:00:00+00:00",
-    "latest_region_labeled_date": "2026-09-25T00:00:00+00:00",
+    "attack_rows": 4202,
+    "region_rows": 1050,
+    "weapon_rows": 4202,
+    "attacks_with_region": 292,
+    "region_coverage_rate": 0.06949071870537839,
+    "recent_attack_rows_90d": 339,
+    "recent_attacks_with_region_90d": 47,
+    "recent_region_coverage_90d": 0.13864306784660768,
+    "latest_attack_date": "2026-10-03T18:00:00+00:00",
+    "latest_region_labeled_date": "2026-10-03T18:00:00+00:00",
     "region_label_lag_days": 0,
     "duplicate_attack_ids": 0,
     "invalid_attack_dates": 0,
@@ -30,16 +30,16 @@
     "warnings": 6,
     "model_ready_for_serving": false,
     "model_readiness_reasons": [
-      "Overall region-label coverage is only 6.7%",
+      "Overall region-label coverage is only 6.9%",
       "Recent 90-day region-label coverage is below 25%"
     ]
   },
   "learning": {
     "status": "blocked_unverified_outcomes",
     "data_start": "2025-02-25 00:00:00+00:00",
-    "data_end": "2026-09-24 00:00:00+00:00",
-    "verified_rows": 901,
-    "unknown_rows": 12947,
+    "data_end": "2026-10-02 00:00:00+00:00",
+    "verified_rows": 916,
+    "unknown_rows": 13124,
     "candidate_metrics": null,
     "baseline_metrics": null,
     "beats_baseline": false,
@@ -47,21 +47,21 @@
     "quality_gate_passed": false,
     "model_readiness_reasons": [
       "Unverified oblast/day outcomes cannot be used as negative labels",
-      "Overall region-label coverage is only 6.7%",
+      "Overall region-label coverage is only 6.9%",
       "Recent 90-day region-label coverage is below 25%"
     ],
     "champion_metrics_on_same_holdout": null,
     "promoted": false,
     "decision_reason": "Training blocked: unverified oblast/day outcomes"
   },
-  "technical_readiness_score": 54,
+  "technical_readiness_score": 56,
   "improvement_recommendations": [
     {
       "priority": 99,
       "level": "Високий",
       "area": "Дані для навчання",
       "title": "Підтвердити дні без атак",
-      "finding": "Для 12947 пар область–день результат невідомий.",
+      "finding": "Для 13124 пар область–день результат невідомий.",
       "action": "Додати перевірене джерело повноти спостережень із посиланням на кожен день; до цього не навчати модель на невідомих днях.",
       "automatic": false
     },
@@ -70,7 +70,7 @@
       "level": "Високий",
       "area": "Дані",
       "title": "Збільшити регіональне покриття",
-      "finding": "Область визначена лише для 6.7% історичних записів.",
+      "finding": "Область визначена лише для 6.9% історичних записів.",
       "action": "Підключити додаткове історичне джерело з надійним полем області та не вважати нерозмічені події негативними прикладами.",
       "automatic": false
     },
@@ -79,7 +79,7 @@
       "level": "Високий",
       "area": "Дані",
       "title": "Покращити свіжу регіональну розмітку",
-      "finding": "За останні 90 днів регіональне покриття становить 10.5%.",
+      "finding": "За останні 90 днів регіональне покриття становить 13.9%.",
       "action": "Пріоритетно додавати джерела, що стабільно містять область для нових подій.",
       "automatic": false
     },
@@ -137,9 +137,9 @@
       "etryvoga_volunteer": {
         "role": "air_raid_context_not_attack_labels",
         "active": true,
-        "rows": 29499,
+        "rows": 29637,
         "start": "2022-02-25 00:00:00+00:00",
-        "end": "2026-09-27 00:00:00+00:00"
+        "end": "2026-10-04 00:00:00+00:00"
       },
       "acled": {
         "role": "conflict_events_optional",
